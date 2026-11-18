@@ -1,0 +1,19 @@
+{
+  "maxSearchMeters": 1500,
+  "sites": [
+    {
+      "monsterId": "bu_daryah",
+      "name": "Sabah Al Salem Walkway",
+      "latitude": 29.2558375,
+      "longitude": 48.078453125,
+      "arrivalRadiusMeters": 30
+    },
+    {
+      "monsterId": "om_el_saaf",
+      "name": "Sabah Al Salem Walkway",
+      "latitude": 29.2558375,
+      "longitude": 48.078453125,
+      "arrivalRadiusMeters": 30
+    }
+  ]
+}

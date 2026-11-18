@@ -1,0 +1,26 @@
+using UnityEngine;
+
+// Main gentle moving sandy breeze. Attach to OmElsaafTheme > midBreeze.
+[AddComponentMenu("MasAR+/Om Elsaaf/Breeze Mid")]
+public class OmElsaafBreezeMid : OmElsaafBreezeLayerBase
+{
+    private void Reset()
+    {
+        sandColor = new Color32(190, 163, 124, 255);
+        lightColor = new Color32(229, 211, 180, 255);
+        visibility = 0.22f;
+        ribbonThickness = 59f;
+        heightAboveBottom = 140f;
+        curveAmplitude = 17f;
+        centerStrength = 0.65f;
+        edgeFeather = 0.14f;
+        paleStreakStrength = 0.25f;
+        secondsAcrossScreen = 17f;
+        gustWidth = 0.32f;
+        phaseOffset = 0.72f;
+        curveCycles = 1.45f;
+        segments = 64;
+        color = Color.white;
+        raycastTarget = false;
+    }
+}

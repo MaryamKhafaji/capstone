@@ -1,0 +1,11 @@
+
+apply plugin: 'com.android.library'
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+android {
+    namespace 'com.masar.footwear'
+    compileSdk 35
+}

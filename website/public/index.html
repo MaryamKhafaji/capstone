@@ -1,0 +1,851 @@
+
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MASAR+ Admin Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-tertiary-fixed-variant": "#6A5044",
+          "inverse-primary": "#DAB3BE",
+          "primary": "#602638",
+          "inverse-surface": "#2D2026",
+          "on-surface": "#292321",
+          "secondary-fixed": "#E7DCD0",
+          "surface-container-high": "#E8DCD0",
+          "primary-container": "#DDB8C2",
+          "on-error": "#FFFFFF",
+          "error-container": "#F9DEDC",
+          "inverse-on-surface": "#FFFCF8",
+          "on-tertiary": "#FFFFFF",
+          "secondary-container": "#E8DED5",
+          "secondary": "#776D66",
+          "surface-variant": "#E7DCD0",
+          "tertiary-fixed-dim": "#CFB7A3",
+          "tertiary": "#99744F",
+          "primary-fixed": "#EAD8DD",
+          "surface-container-lowest": "#FFFFFF",
+          "surface": "#F6F0E8",
+          "background": "#F6F0E8",
+          "outline-variant": "#DFD0C3",
+          "tertiary-fixed": "#EADCCB",
+          "on-error-container": "#8D2635",
+          "on-primary": "#FFFFFF",
+          "on-tertiary-fixed": "#292321",
+          "secondary-fixed-dim": "#D7C4B8",
+          "surface-container-highest": "#E7DCD0",
+          "outline": "#9A8B80",
+          "on-background": "#292321",
+          "surface-bright": "#F6F0E8",
+          "primary-fixed-dim": "#DAB3BE",
+          "on-primary-container": "#43212E",
+          "on-primary-fixed-variant": "#632F43",
+          "surface-container": "#F0E6DB",
+          "tertiary-container": "#D9C3AC",
+          "error": "#B3261E",
+          "on-secondary-container": "#5E514D",
+          "surface-tint": "#602638",
+          "on-tertiary-container": "#5D4234",
+          "on-secondary": "#FFFFFF",
+          "surface-dim": "#E1D5CA",
+          "on-primary-fixed": "#43212E",
+          "on-secondary-fixed-variant": "#5E514D",
+          "surface-container-low": "#F3EAE0",
+          "on-surface-variant": "#776D66",
+          "on-secondary-fixed": "#292321"
+        },
+        fontFamily: {
+          "headline": ["Manrope"],
+          "body": ["Inter"],
+          "label": ["Inter"]
+        },
+        borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+      },
+    },
+  }
+</script>
+<style>
+  * { box-sizing: border-box; }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+  }
+  .fill-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .glass-panel {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .bg-quest-canvas { background-color: #E9DED3; }
+  body { min-height: 100vh; font-family: 'Inter', sans-serif; }
+
+  /* Page transitions */
+  .page { display: none; animation: fadeIn 0.25s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Sidebar */
+  #sidebar { transition: transform 0.3s ease; }
+
+  /* Toggle switches */
+  .toggle-track { transition: background 0.2s; cursor: pointer; }
+  .toggle-thumb { transition: transform 0.2s; }
+  .toggle-on .toggle-track { background: #602638; }
+  .toggle-on .toggle-thumb { transform: translateX(24px); }
+
+  /* Notification badge */
+  .notif-badge {
+    position: absolute; top: -4px; right: -4px;
+    width: 16px; height: 16px;
+    background: #B3261E; border-radius: 50%;
+    color: white; font-size: 9px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #21191D;
+  }
+
+  /* Sidebar nav active */
+  .nav-link { transition: all 0.2s; }
+  .nav-link:hover { transform: translateX(4px); }
+  .nav-link.active {
+    background: #F0E6DB;
+    color: #602638;
+    font-weight: 700;
+    border-radius: 0 9999px 9999px 0;
+  }
+
+  /* Quest card hover */
+  .quest-card { transition: box-shadow 0.2s, transform 0.2s; }
+  .quest-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.08); }
+
+  /* Stat card */
+  .stat-card { transition: transform 0.2s; }
+  .stat-card:hover { transform: translateY(-3px); }
+
+  /* Password visibility */
+  #password-field { font-family: inherit; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #DFD0C3; border-radius: 3px; }
+
+  /* Mobile sidebar overlay */
+  #sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 35; }
+  #sidebar-overlay.show { display: block; }
+
+  @media (max-width: 767px) {
+    #sidebar { transform: translateX(-100%); z-index: 40; }
+    #sidebar.open { transform: translateX(0); }
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #292321; color: white;
+    padding: 14px 20px; border-radius: 12px;
+    font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap-10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    transform: translateY(80px); opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 9999; gap: 10px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  .dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: white; border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(33,25,29,0.12);
+    min-width: 180px; overflow: hidden; z-index: 100;
+  }
+  .dropdown-menu.open { display: block; animation: fadeIn 0.15s ease; }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; font-size: 14px; font-weight: 500;
+    color: #776D66; cursor: pointer; transition: background 0.15s;
+  }
+  .dropdown-item:hover { background: #F3EAE0; color: #602638; }
+
+  /* Dashboard charts */
+  .bar { transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+
+  .breadcrumb-sep { font-size: 14px; opacity: 0.5; }
+
+  /* ---- Live app additions ---- */
+  .toggle-track { background: rgba(185,166,154,0.45); }
+  .toggle-on .toggle-track { background: #602638; }
+  #toast.error { background: #8D2635; }
+  #boot { position: fixed; inset: 0; z-index: 10000; background: #21191D; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; color: white; }
+  #boot.hidden { display: none; }
+  .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(121,57,78,0.25); border-top-color: #79394E; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .chip.active { background: #602638; color: white; }
+  .skeleton { background: linear-gradient(90deg,#F0E6DB 25%,#F3EAE0 50%,#F0E6DB 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 12px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  #modal { position: fixed; inset: 0; z-index: 200; background: rgba(33,25,29,0.55); display: none; align-items: center; justify-content: center; padding: 16px; }
+  #modal.open { display: flex; animation: fadeIn 0.2s ease; }
+  .field { background: #F3EAE0; border: none; border-radius: 0.5rem; padding: 0.75rem; width: 100%; outline: none; font-weight: 500; color: #292321; }
+  .field:focus { box-shadow: 0 0 0 2px rgba(96,38,56,0.2); }
+  .field-label { font-size: 12px; font-weight: 700; color: #776D66; text-transform: uppercase; letter-spacing: 0.05em; }
+  button[disabled] { opacity: 0.6; cursor: not-allowed; }
+</style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+
+<!-- ======= BOOT / LOADING ======= -->
+<div id="boot">
+  <h1 class="font-headline font-extrabold text-3xl tracking-tight">MASAR+</h1>
+  <div class="spinner" id="boot-spinner"></div>
+  <p id="boot-msg" class="text-sm text-slate-400 max-w-sm text-center px-6">Connecting to Firebase…</p>
+</div>
+
+<!-- ======= TOAST NOTIFICATION ======= -->
+<div id="toast">
+  <span class="material-symbols-outlined" id="toast-icon" style="font-size:18px">check_circle</span>
+  <span id="toast-msg">Saved successfully</span>
+</div>
+
+<!-- ======= MODAL ======= -->
+<div id="modal">
+  <form id="modal-form" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-8" novalidate>
+    <div class="flex items-center justify-between mb-6">
+      <h3 id="modal-title" class="font-headline text-2xl font-extrabold">Edit</h3>
+      <button type="button" data-action="close-modal" class="w-9 h-9 rounded-lg hover:bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div id="modal-fields" class="space-y-4"></div>
+    <p id="modal-error" class="text-sm text-error font-medium mt-4 hidden"></p>
+    <div class="flex items-center justify-between gap-3 mt-8">
+      <button type="button" id="modal-delete" class="px-4 py-2.5 text-sm font-bold text-error border border-error/30 rounded-xl hover:bg-error hover:text-white transition-all hidden">Delete</button>
+      <div class="flex gap-3 ml-auto">
+        <button type="button" data-action="close-modal" class="px-5 py-2.5 rounded-xl font-bold text-on-surface-variant hover:bg-surface-container-low">Cancel</button>
+        <button type="submit" id="modal-save" class="px-6 py-2.5 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">Save</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ======= TOP APP BAR ======= -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 md:px-8 h-20 bg-[#21191D] z-50 shadow-lg shadow-[#292321]/20">
+  <div class="flex items-center gap-4">
+    <button id="menu-btn" class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors" data-action="toggle-sidebar">
+      <span class="material-symbols-outlined text-[#E6BCC5]">menu</span>
+    </button>
+    <h1 class="font-headline font-extrabold tracking-tight text-white text-2xl cursor-pointer" data-nav="dashboard">MASAR+</h1>
+  </div>
+
+  <nav class="hidden md:flex items-center gap-6 auth-only" id="top-nav">
+    <a class="nav-top font-headline font-bold text-slate-400 hover:text-white transition-colors cursor-pointer text-sm" data-page="dashboard">Dashboard</a>
+    <a class="nav-top font-headline font-bold text-slate-400 hover:text-white transition-colors cursor-pointer text-sm" data-page="analytics">Analytics</a>
+  </nav>
+
+  <div class="flex items-center gap-3 auth-only">
+    <!-- Notifications -->
+    <div class="relative" id="notifications-wrap">
+      <button class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors relative" data-action="dropdown" data-target="notif-dropdown">
+        <span class="material-symbols-outlined text-white" style="font-size:20px">notifications</span>
+        <span class="notif-badge hidden" id="notif-badge">0</span>
+      </button>
+      <div class="dropdown-menu" id="notif-dropdown" style="min-width:280px">
+        <div style="padding:12px 16px 8px;border-bottom:1px solid #E7DBCF">
+          <p style="font-size:13px;font-weight:700;color:#292321">Open flags</p>
+        </div>
+        <div id="notif-list"><div class="dropdown-item">No notifications</div></div>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div class="relative">
+      <button class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#79394E] transition-all font-headline font-extrabold text-on-primary-container" data-action="dropdown" data-target="profile-dropdown">
+        <span class="admin-initials">A</span>
+      </button>
+      <div class="dropdown-menu" id="profile-dropdown">
+        <div style="padding:12px 16px 8px;border-bottom:1px solid #E7DBCF">
+          <p style="font-size:13px;font-weight:700;color:#292321" class="admin-name">Admin</p>
+          <p style="font-size:11px;color:#9A8B80" class="admin-role">Administrator</p>
+        </div>
+        <div class="dropdown-item" id="profile-settings" data-nav="settings"><span class="material-symbols-outlined" style="font-size:16px">settings</span> Settings</div>
+        <div class="dropdown-item" style="color:#B3261E" data-action="logout"><span class="material-symbols-outlined" style="font-size:16px;color:#B3261E">logout</span> Sign Out</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======= SIDEBAR OVERLAY ======= -->
+<div id="sidebar-overlay" data-action="close-sidebar"></div>
+
+<!-- ======= SIDEBAR ======= -->
+<aside id="sidebar" class="fixed left-0 top-20 h-[calc(100vh-80px)] w-64 flex-col py-6 bg-[#43212E] z-40" style="display:none">
+  <div class="px-6 mb-4">
+    <p class="text-[10px] uppercase tracking-widest text-[#DAC7CB] font-bold opacity-60">Management</p>
+  </div>
+  <nav class="flex flex-col gap-0.5 pr-4 flex-1" id="sidebar-nav">
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="dashboard"><span class="material-symbols-outlined" style="font-size:20px">dashboard</span><span>Dashboard</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="rewards"><span class="material-symbols-outlined" style="font-size:20px">military_tech</span><span>Rewards</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sponsors"><span class="material-symbols-outlined" style="font-size:20px">handshake</span><span>Partners</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="analytics"><span class="material-symbols-outlined" style="font-size:20px">insights</span><span>Analytics</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="flags"><span class="material-symbols-outlined" style="font-size:20px">flag</span><span>Flags</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="hunts"><span class="material-symbols-outlined" style="font-size:20px">explore</span><span>Hunts</span></a>
+    <div class="flex-1"></div>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sp-dashboard"><span class="material-symbols-outlined" style="font-size:20px">dashboard</span><span>Overview</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sp-products"><span class="material-symbols-outlined" style="font-size:20px">inventory_2</span><span>My Products</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sp-rewards"><span class="material-symbols-outlined" style="font-size:20px">redeem</span><span>Selected Rewards</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sp-verify"><span class="material-symbols-outlined" style="font-size:20px">qr_code_scanner</span><span>Verify Rewards</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer" data-page="sp-profile"><span class="material-symbols-outlined" style="font-size:20px">store</span><span>Company Profile</span></a>
+    <a class="nav-link flex items-center gap-4 px-6 py-3 text-[#E8D9DC] font-medium text-sm cursor-pointer mt-auto" data-page="settings"><span class="material-symbols-outlined" style="font-size:20px">settings</span><span>Settings</span></a>
+  </nav>
+  <div class="px-6 pt-4 mt-2 border-t border-outline-variant/20">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-xs font-extrabold text-on-primary-container admin-initials">A</div>
+      <div class="min-w-0">
+        <p class="text-xs font-bold text-[#FFFCF8] truncate admin-name">Admin</p>
+        <p class="text-[10px] text-[#DAC7CB] admin-role">Administrator</p>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ======= MAIN AREA ======= -->
+<div id="app" class="pt-20 min-h-screen">
+
+  <!-- PAGE: LOGIN -->
+  <div id="page-login" class="page">
+    <div class="bg-[#E9DED3] min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4 py-12">
+      <div class="w-full max-w-lg z-10">
+        <form id="login-form" class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-10 md:p-12 border border-slate-100" novalidate>
+          <div class="mb-10 text-left">
+            <h1 class="font-headline font-extrabold text-4xl text-[#292321] mb-4 tracking-tight">Portal Access</h1>
+            <p class="text-on-surface-variant text-base leading-relaxed max-w-sm">Welcome back. Enter your administrative credentials to manage the MASAR+ ecosystem.</p>
+          </div>
+
+          <div id="login-error" class="mb-8 hidden items-start gap-4 p-5 bg-[#F9DEDC] rounded-xl border border-red-100">
+            <span class="material-symbols-outlined text-error" style="font-size:24px">error</span>
+            <div id="login-error-msg" class="text-sm text-on-error-container font-medium leading-tight">Invalid administrative credentials.</div>
+          </div>
+          <div id="login-info" class="mb-8 hidden items-start gap-4 p-5 bg-primary-fixed rounded-xl">
+            <span class="material-symbols-outlined text-primary" style="font-size:24px">mark_email_read</span>
+            <div id="login-info-msg" class="text-sm text-on-primary-fixed font-medium leading-tight"></div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="block font-label text-sm font-bold text-on-surface-variant" for="login-email">Email</label>
+              <div class="relative group">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" style="font-size:20px">person</span>
+                <input id="login-email" autocomplete="username" class="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#79394E]/30 focus:border-[#79394E] outline-none transition-all text-on-surface placeholder:text-slate-400" placeholder="you@company.com" type="email" required/>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <label class="block font-label text-sm font-bold text-on-surface-variant" for="login-password">Secure Password</label>
+                <a class="text-sm font-bold text-[#602638] hover:underline cursor-pointer" data-action="forgot">Forgot access?</a>
+              </div>
+              <div class="relative group">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" style="font-size:20px">lock</span>
+                <input id="login-password" autocomplete="current-password" class="w-full pl-12 pr-12 py-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#79394E]/30 focus:border-[#79394E] outline-none transition-all text-on-surface placeholder:text-slate-400" placeholder="••••••••" type="password" required/>
+                <button id="toggle-pw" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface" type="button" data-action="toggle-password">
+                  <span class="material-symbols-outlined" style="font-size:20px">visibility</span>
+                </button>
+              </div>
+            </div>
+            <button type="submit" id="login-submit" class="w-full py-4 mt-2 bg-[#79394E] text-white font-extrabold text-lg rounded-xl shadow-lg shadow-[#79394E]/30 hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3 group">
+              <span id="login-submit-label">Confirm Identity</span>
+              <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform" style="font-size:20px">arrow_forward</span>
+            </button>
+          </div>
+
+          <button type="button" data-nav="signup" class="mt-5 text-center w-full text-primary font-bold text-sm hover:underline">Sign up as Sponsor</button>
+          <div class="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-[12px] text-on-surface-variant font-bold tracking-wide uppercase">
+              <span class="material-symbols-outlined" style="font-size:16px">verified_user</span> Encrypted Session
+            </div>
+            <div class="flex items-center gap-2 text-[12px] text-on-surface-variant font-bold tracking-wide uppercase">
+              <span class="material-symbols-outlined" style="font-size:16px">lock_person</span> Sponsors & Admins
+            </div>
+          </div>
+        </form>
+        <div class="mt-6 text-center text-[11px] text-slate-400 uppercase tracking-[0.2em] font-medium">
+          © <span class="year"></span> MASAR+ Global Administration • Proprietary Systems
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: SPONSOR REGISTRATION — uses the original login design system -->
+  <div id="page-signup" class="page bg-quest-canvas min-h-screen">
+    <div class="min-h-[calc(100vh-80px)] flex items-center justify-center p-6">
+      <form id="signup-form" class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-8 md:p-10 border border-slate-100 w-full max-w-2xl">
+        <button type="button" data-nav="login" class="text-sm text-primary font-bold mb-5">← Back to login</button>
+        <h2 class="font-headline text-3xl font-extrabold mb-2">Become a MasAR+ Sponsor</h2>
+        <p class="text-on-surface-variant mb-6 text-sm">Create your company account and start offering rewards immediately.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="block"><span class="field-label">Your full name *</span><input class="field" name="contactName" required maxlength="120" autocomplete="name"></label>
+          <label class="block"><span class="field-label">Work email *</span><input class="field" name="email" type="email" required autocomplete="email"></label>
+          <label class="block"><span class="field-label">Password (at least 8 characters) *</span><input class="field" name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+          <label class="block"><span class="field-label">Phone *</span><input class="field" name="phone" type="tel" required maxlength="40"></label>
+          <label class="block"><span class="field-label">Company name *</span><input class="field" name="businessName" required maxlength="150"></label>
+          <label class="block"><span class="field-label">Industry *</span><input class="field" name="industry" required maxlength="100" placeholder="Food & Beverage, Retail, Fitness…"></label>
+          <label class="block"><span class="field-label">Website / social media (optional)</span><input class="field" name="website" maxlength="250" placeholder="https://…"></label>
+          <label class="block"><span class="field-label">Reward pickup location / branch</span><input class="field" name="pickupLocation" maxlength="250" placeholder="Area, branch or store location"></label>
+          <label class="block"><span class="field-label">Company logo (optional)</span><input class="field" type="file" name="logo" accept="image/jpeg,image/png,image/webp"><img id="signup-logo-preview" alt="Company logo preview" class="hidden mt-2 h-20 w-20 object-contain rounded-lg border border-slate-100" /></label>
+        </div>
+        <label class="block mt-4"><span class="field-label">About your company *</span><textarea class="field" name="description" rows="3" required maxlength="1500" placeholder="What does your company offer?"></textarea></label>
+        <p id="signup-error" class="text-sm text-error font-medium mt-3 hidden" role="alert"></p>
+        <button id="signup-submit" type="submit" class="w-full py-4 mt-6 bg-[#79394E] text-[#FFFCF8] font-extrabold rounded-xl hover:brightness-105">Create Sponsor Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="page-dashboard" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-10">
+        <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2 tracking-tight">Dashboard</h2>
+        <p class="text-on-surface-variant text-base">Welcome back, <strong class="admin-name">Admin</strong>. Here's your MASAR+ overview.</p>
+      </div>
+
+      <div id="seed-banner" class="hidden mb-8 bg-[#292321] text-white rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="font-headline font-bold text-lg">Your portal has no rewards or partners yet</p>
+          <p class="text-sm text-slate-400">Add sample rewards and partners to try the portal out. You can edit or delete them afterwards.</p>
+        </div>
+        <button data-action="seed" class="px-6 py-3 bg-[#79394E] text-[#FFFCF8] font-bold rounded-xl whitespace-nowrap">Add sample data</button>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-primary">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Hunts Completed</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="stat-active">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="stat-active-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-[#79394E]">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Players</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="stat-users">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="stat-users-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-tertiary">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Total Steps</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="stat-steps">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="stat-steps-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-amber-400">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Redemptions</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="stat-redeem">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="stat-redeem-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-error">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Open Flags</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="stat-flags">–</p>
+          <p class="text-xs text-error font-semibold mt-2 flex items-center gap-1"><span class="material-symbols-outlined" style="font-size:14px">warning</span> Needs review</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h3 class="font-headline text-xl font-bold">Hunt Activity</h3>
+              <p class="text-xs text-on-surface-variant mt-1">Hunts completed by players, last 7 days</p>
+            </div>
+            <span class="text-xs font-semibold text-on-surface-variant" id="activity-total"></span>
+          </div>
+          <div class="flex items-end gap-2 h-40 mt-4" id="activity-chart"></div>
+        </div>
+
+        <div class="lg:col-span-4 flex flex-col gap-4">
+          <div class="bg-[#292321] rounded-xl p-6 text-white flex-1">
+            <h3 class="font-headline text-lg font-bold mb-4">Quick Actions</h3>
+            <div class="space-y-3">
+              <button data-nav="rewards" class="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm font-semibold text-left"><span class="material-symbols-outlined text-[#E6BCC5]" style="font-size:18px">military_tech</span> Manage Rewards</button>
+              <button onclick="document.getElementById('analytics-export-section').scrollIntoView({behavior:'smooth'})" class="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm font-semibold text-left"><span class="material-symbols-outlined text-[#E6BCC5]" style="font-size:18px">file_download</span> Generate Report</button>
+              <button data-nav="flags" class="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm font-semibold text-left"><span class="material-symbols-outlined text-error" style="font-size:18px">flag</span> <span id="qa-flags">Review Flags</span></button>
+              <button data-nav="analytics" class="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm font-semibold text-left"><span class="material-symbols-outlined text-[#E6BCC5]" style="font-size:18px">insights</span> View Analytics</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-12 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h3 class="font-headline text-xl font-bold">Recent Hunt Completions</h3>
+              <p class="text-xs text-on-surface-variant mt-1">Latest hunts finished by players in the game</p>
+            </div>
+            <button data-nav="analytics" class="text-sm font-bold text-primary hover:underline">View analytics</button>
+          </div>
+          <div class="space-y-3" id="recent-completions"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: ANALYTICS -->
+  <div id="page-analytics" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-10">
+        <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2 tracking-tight">Analytics</h2>
+        <p class="text-on-surface-variant">Insights from players' walking sessions recorded by the MasAR+ app and heel pad.</p>
+        <div id="analytics-ranges" class="flex flex-wrap gap-2 mt-5" aria-label="Analytics period">
+          <button class="chip px-4 py-2 rounded-full text-sm" data-range="week">Week</button>
+          <button class="chip px-4 py-2 rounded-full text-sm" data-range="month">Month</button>
+          <button class="chip px-4 py-2 rounded-full text-sm" data-range="year">Year</button>
+          <button class="chip active px-4 py-2 rounded-full text-sm" data-range="all">Total</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="stat-card bg-primary-fixed rounded-xl p-6 border-l-4 border-primary">
+          <p class="text-xs font-bold uppercase text-on-primary-fixed-variant tracking-wider mb-2">Total Steps</p>
+          <p class="font-headline text-3xl font-extrabold text-on-primary-fixed" id="an-steps">–</p>
+          <p class="text-xs text-on-primary-fixed-variant font-semibold mt-2" id="an-steps-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-secondary-fixed rounded-xl p-6 border-l-4 border-secondary">
+          <p class="text-xs font-bold uppercase text-on-secondary-fixed-variant tracking-wider mb-2">Crystals Earned</p>
+          <p class="font-headline text-3xl font-extrabold text-on-secondary-fixed" id="an-crystals">–</p>
+          <p class="text-xs text-on-secondary-fixed-variant font-semibold mt-2" id="an-crystals-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-[#79394E]">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Avg. Session</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface" id="an-duration">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="an-duration-sub">&nbsp;</p>
+        </div>
+        <div class="stat-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-l-4 border-tertiary">
+          <p class="text-xs font-bold uppercase text-on-surface-variant tracking-wider mb-2">Most Played Legend</p>
+          <p class="font-headline text-3xl font-extrabold text-on-surface truncate" id="an-top">–</p>
+          <p class="text-xs text-on-surface-variant font-semibold mt-2" id="an-top-sub">&nbsp;</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-7 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold mb-1">Hunts by Legend</h3>
+          <p class="text-xs text-on-surface-variant mb-6">Share of completed hunts per legend</p>
+          <div class="space-y-4" id="an-regions"></div>
+        </div>
+        <div class="lg:col-span-5 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold mb-6">Top Walkers</h3>
+          <div class="space-y-3" id="an-top-quests"></div>
+        </div>
+        <div class="lg:col-span-12 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-6">
+            <div>
+              <h3 class="font-headline text-xl font-bold">Reward Redemptions</h3>
+              <p class="text-xs text-on-surface-variant mt-1">From players' redeemed rewards</p>
+            </div>
+            <div class="flex gap-6">
+              <div><p class="text-[10px] font-bold uppercase text-on-surface-variant">Total</p><p class="font-headline text-2xl font-extrabold" id="an-redeem-total">–</p></div>
+              <div><p class="text-[10px] font-bold uppercase text-on-surface-variant">Fulfilled</p><p class="font-headline text-2xl font-extrabold" id="an-redeem-30">–</p></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" id="an-redeem-list"></div>
+        </div>
+        <div class="lg:col-span-12 bg-[#292321] rounded-xl p-8 text-white">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="font-headline text-xl font-bold">Hunt Completions</h3>
+            <button onclick="document.getElementById('analytics-export-section').scrollIntoView({behavior:'smooth'})" class="text-xs font-bold text-[#E6BCC5] flex items-center gap-1 hover:underline"><span class="material-symbols-outlined" style="font-size:14px">file_download</span> Export</button>
+          </div>
+          <div class="flex items-end gap-3 h-32" id="an-monthly"></div>
+        </div>
+      </div>
+      <section id="analytics-export-section" class="mt-10 pt-8 border-t border-on-surface-variant/10">
+        <h3 class="font-headline text-2xl font-extrabold mb-2">Export Analytics</h3>
+        <p class="text-on-surface-variant text-sm mb-6">Download a summary for your selected period, or export a dataset as CSV or JSON.</p>
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div class="md:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm border-l-4 border-primary">
+          <div class="flex items-center gap-3 mb-6"><span class="material-symbols-outlined text-primary" style="font-size:22px">calendar_month</span><h3 class="font-headline text-xl font-bold">Dataset &amp; Date Range</h3></div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div class="space-y-2">
+              <label class="field-label" for="ex-dataset">Dataset</label>
+              <select id="ex-dataset" class="field">
+                <option value="analytics_summary">Analytics summary</option>
+                <option value="rewards">Rewards</option>
+                <option value="partners">Partners</option>
+                <option value="flags">Flag decisions</option>
+                <option value="users">Players</option>
+                <option value="walking_sessions">Walking sessions</option>
+                <option value="leaderboard">Leaderboard</option>
+                <option value="user_rewards">Reward redemptions</option>
+              </select>
+            </div>
+            <div class="space-y-2"><label class="field-label" for="ex-start">Start Date</label><input id="ex-start" class="field" type="date"/></div>
+            <div class="space-y-2"><label class="field-label" for="ex-end">End Date</label><input id="ex-end" class="field" type="date"/></div>
+          </div>
+          <div class="mt-8 flex flex-wrap gap-3" id="ex-ranges">
+            <button class="chip px-4 py-2 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium transition-all" data-range="7">Last 7 Days</button>
+            <button class="chip px-4 py-2 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium transition-all" data-range="30">Last 30 Days</button>
+            <button class="chip px-4 py-2 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium transition-all" data-range="365">Last Year</button>
+            <button class="chip active px-4 py-2 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium transition-all" data-range="all">All Time</button>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-4">The analytics summary follows the period selected above. Date filters apply to other datasets.</p>
+        </div>
+
+        <div class="md:col-span-4 glass-panel rounded-xl p-8 shadow-sm">
+          <div class="flex items-center gap-3 mb-6"><span class="material-symbols-outlined text-secondary" style="font-size:22px">description</span><h3 class="font-headline text-xl font-bold">Report Format</h3></div>
+          <div class="space-y-4">
+            <label class="flex items-start gap-4 cursor-pointer">
+              <input type="radio" name="ex-format" value="csv" checked class="mt-2 text-primary focus:ring-primary"/>
+              <div class="mt-1 w-8 h-8 rounded bg-[#EAD8DD] flex items-center justify-center text-[#602638] font-bold text-xs">CSV</div>
+              <div><p class="font-bold text-sm">CSV spreadsheet</p><p class="text-xs text-on-surface-variant leading-relaxed">Opens in Excel, Google Sheets and BI tools.</p></div>
+            </label>
+            <label class="flex items-start gap-4 cursor-pointer">
+              <input type="radio" name="ex-format" value="json" class="mt-2 text-primary focus:ring-primary"/>
+              <div class="mt-1 w-8 h-8 rounded bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs">JSON</div>
+              <div><p class="font-bold text-sm">JSON</p><p class="text-xs text-on-surface-variant leading-relaxed">Full-fidelity data for developers.</p></div>
+            </label>
+          </div>
+        </div>
+
+        <div class="md:col-span-12 lg:col-span-7 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold mb-6">Report Parameters</h3>
+          <div class="space-y-6">
+            <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-lg">
+              <div class="flex items-center gap-4">
+                <span class="material-symbols-outlined text-primary-container fill-icon" style="font-size:22px">group</span>
+                <div><p class="font-bold">Anonymize User Data</p><p class="text-xs text-on-surface-variant">Remove names, emails and contact details; replace user IDs with a pseudonym.</p></div>
+              </div>
+              <div id="toggle-anon" class="toggle w-12 h-6 relative cursor-pointer shrink-0">
+                <div class="toggle-track w-full h-full rounded-full"></div>
+                <div class="toggle-thumb absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow"></div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-4 bg-primary-fixed rounded-lg border-l-4 border-primary">
+                <p class="text-xs font-bold uppercase text-on-primary-fixed-variant">Records</p>
+                <p class="font-headline text-3xl font-extrabold text-on-primary-fixed" id="ex-count">–</p>
+              </div>
+              <div class="p-4 bg-secondary-fixed rounded-lg border-l-4 border-secondary">
+                <p class="text-xs font-bold uppercase text-on-secondary-fixed-variant">Est. File Size</p>
+                <p class="font-headline text-3xl font-extrabold text-on-secondary-fixed" id="ex-size">–</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="md:col-span-12 lg:col-span-5 flex flex-col justify-center items-center bg-[#292321] rounded-xl p-12 text-center text-white overflow-hidden relative">
+          <div class="relative z-10 w-full">
+            <div class="w-20 h-20 bg-[#79394E]/20 rounded-full flex items-center justify-center mx-auto mb-6"><span class="material-symbols-outlined text-[#E6BCC5]" style="font-size:40px">download_done</span></div>
+            <h3 class="font-headline text-2xl font-bold mb-4">Ready to Export</h3>
+            <p class="text-slate-400 text-sm mb-8 leading-relaxed">The file is generated in your browser from live database records.</p>
+            <button data-action="export" id="ex-btn" class="w-full bg-[#79394E] text-[#FFFCF8] font-headline font-extrabold text-base py-4 px-8 rounded-xl shadow-xl shadow-[#79394E]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">Generate and Download <span class="material-symbols-outlined" style="font-size:18px">arrow_forward</span></button>
+          </div>
+        </div>
+      </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- PAGE: REWARDS -->
+  <div id="page-rewards" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2">Rewards</h2>
+          <p class="text-on-surface-variant">Review sponsor products and publish rewards with automatic crystal pricing.</p>
+        </div>
+        <button data-action="new-reward" class="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 active:scale-95 transition-all shadow-lg shadow-primary/20"><span class="material-symbols-outlined" style="font-size:18px">add</span> Add Reward</button>
+      </div>
+      <section class="mb-10 rounded-xl bg-surface-container-lowest shadow-sm p-6" id="sponsor-catalog-section">
+        <div class="flex items-center justify-between mb-4"><div><h3 class="font-headline text-xl font-bold">Sponsor Product Catalog</h3><p class="text-sm text-on-surface-variant">Select and publish products. 1 KD equals 1,000 crystals; pricing is automatic.</p></div></div>
+        <div id="admin-product-catalog" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </section>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="reward-grid"></div>
+    </div>
+  </div>
+
+  <!-- PAGE: PARTNERS -->
+  <div id="page-sponsors" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2">Partners</h2>
+          <p class="text-on-surface-variant">View companies, suspend accounts when needed, and manage partnerships.</p>
+        </div>
+        <button data-action="new-partner" class="flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 active:scale-95 transition-all shadow-lg shadow-primary/20"><span class="material-symbols-outlined" style="font-size:18px">add</span> Add Partner</button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold mb-6">Partnerships</h3>
+          <div class="space-y-3" id="partner-list"></div>
+        </div>
+        <div class="lg:col-span-4 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold mb-6">Partner Summary</h3>
+          <div class="space-y-4">
+            <div class="p-4 bg-primary-fixed rounded-lg"><p class="text-xs font-bold uppercase text-on-primary-fixed-variant">Total Partners</p><p class="font-headline text-3xl font-extrabold text-on-primary-fixed" id="sp-total">–</p></div>
+            <div class="p-4 bg-secondary-fixed rounded-lg"><p class="text-xs font-bold uppercase text-on-secondary-fixed-variant">Verified</p><p class="font-headline text-3xl font-extrabold text-on-secondary-fixed" id="sp-verified">–</p></div>
+            <div class="p-4 bg-amber-50 rounded-lg"><p class="text-xs font-bold uppercase text-amber-800">Renewals in next 60 days</p><p class="font-headline text-3xl font-extrabold text-amber-900" id="sp-renewals">–</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- SPONSOR ACCOUNT SUSPENSION / SETUP ISSUE -->
+  <div id="page-application-status" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-3xl mx-auto">
+      <div class="bg-white rounded-2xl shadow-sm p-10 text-center">
+        <span class="material-symbols-outlined text-primary" style="font-size:52px">hourglass_top</span>
+        <h2 id="application-status-title" class="font-headline text-3xl font-extrabold mb-3">Company account inactive</h2>
+        <p id="application-status-info" class="text-on-surface-variant mb-6">Contact MasAR+ support if your company account is suspended.</p>
+        <button data-action="logout" class="px-6 py-3 rounded-xl bg-primary text-white font-bold">Sign out</button>
+      </div>
+    </div>
+  </div>
+  <!-- SPONSOR OVERVIEW -->
+  <div id="page-sp-dashboard" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <h2 class="font-headline text-4xl font-extrabold mb-2">Sponsor Dashboard</h2>
+      <p class="text-on-surface-variant mb-8">Manage your offers and see what's been selected for MasAR+ players.</p>
+      <div id="sp-overview" class="grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+      <div class="mt-8 p-6 rounded-xl bg-white shadow-sm"><h3 class="font-headline text-xl font-bold mb-3">Recent products</h3><div id="sp-recent"></div></div>
+    </div>
+  </div>
+  <!-- SPONSOR PRODUCTS -->
+  <div id="page-sp-products" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-3"><div><h2 class="font-headline text-4xl font-extrabold mb-2">My Products</h2><p class="text-on-surface-variant">Add gifts or vouchers. You can edit until an admin publishes them; crystal prices are automatic.</p></div>
+      <button data-action="new-product" class="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20">+ Add Product</button></div>
+      <div id="sp-product-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+    </div>
+  </div>
+  <!-- SPONSOR SELECTED REWARDS -->
+  <div id="page-sp-rewards" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto"><h2 class="font-headline text-4xl font-extrabold mb-2">Selected Rewards</h2><p class="text-on-surface-variant mb-7">Products published by the admin, with live claim counts and crystal prices.</p><div id="sp-selected-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+      <p class="text-xs text-on-surface-variant mt-5">Claims are issued when a player redeems in the Flutter app and are marked fulfilled after in-person verification.</p>
+    </div>
+  </div>
+  <!-- IN-PERSON REWARD FULFILLMENT -->
+  <div id="page-sp-verify" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-4xl mx-auto">
+      <h2 class="font-headline text-4xl font-extrabold mb-2">Verify a Reward</h2>
+      <p class="text-on-surface-variant mb-7">When a player visits your location, ask them for the one-time claim code shown in MasAR+. Give them the gift or voucher only after successful verification.</p>
+      <form id="claim-verify-form" class="bg-white rounded-xl shadow-sm p-8 space-y-4">
+        <label class="block"><span class="field-label">Player's one-time claim code</span><input id="claim-code" class="field uppercase tracking-widest" maxlength="24" placeholder="Enter 24-character code" autocomplete="off" required /></label>
+        <button id="claim-verify-btn" type="submit" class="bg-primary text-white font-bold rounded-xl px-6 py-3">Verify &amp; Mark Collected</button>
+        <div id="claim-verify-result" aria-live="polite"></div>
+      </form>
+      <p class="text-xs text-on-surface-variant mt-6">The same code cannot be used twice. No delivery system or checkout integration is required.</p>
+    </div>
+  </div>
+  <!-- SPONSOR COMPANY -->
+  <div id="page-sp-profile" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-5xl mx-auto"><h2 class="font-headline text-4xl font-extrabold mb-7">Company Profile</h2><div id="sp-company-details" class="bg-white rounded-xl p-8 shadow-sm"></div></div>
+  </div>
+
+  <!-- PAGE: FLAGS -->
+  <div id="page-flags" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2">Flags</h2>
+          <p class="text-on-surface-variant">Suspicious walking sessions (unrealistic speed, steps that don't match distance, impossible times) are flagged automatically for review.</p>
+        </div>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-outline-variant/10 flex flex-wrap items-center gap-3 justify-between">
+          <div class="flex gap-2" id="flag-filters">
+            <button class="chip active px-3 py-1.5 rounded-full text-xs font-bold bg-surface-container-low" data-filter="open">Open</button>
+            <button class="chip px-3 py-1.5 rounded-full text-xs font-bold bg-surface-container-low" data-filter="escalated">Escalated</button>
+            <button class="chip px-3 py-1.5 rounded-full text-xs font-bold bg-surface-container-low" data-filter="resolved">Resolved</button>
+          </div>
+          <button data-action="resolve-all" class="text-xs font-bold text-on-surface-variant hover:text-primary">Resolve all open</button>
+        </div>
+        <div class="divide-y divide-outline-variant/10" id="flag-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: HUNTS -->
+  <div id="page-hunts" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+      <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2">Hunts</h2>
+      <div class="mt-8 grid gap-6 xl:grid-cols-2">
+        <section class="bg-surface-container-lowest rounded-xl p-6 lg:p-8 shadow-sm">
+          <h3 class="font-headline text-xl font-bold">Monsters</h3>
+          <p class="mt-2 text-sm text-on-surface-variant">Manage the Google Maps pins where each monster can spawn.</p>
+          <div id="hunt-monsters" class="mt-6 space-y-5" aria-live="polite"></div>
+        </section>
+        <section class="bg-surface-container-lowest rounded-xl p-6 lg:p-8 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3 class="font-headline text-xl font-bold">Achievements</h3>
+            <button data-action="new-achievement" class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-bold">Add Achievement</button>
+          </div>
+          <p class="mt-2 text-sm text-on-surface-variant">Create badges players earn when a saved hunt meets the unlock condition.</p>
+          <p class="mt-2 text-xs text-on-surface-variant">Additional conditions such as daily totals, lifetime crystals, capture counts, energy, boosts and direction warnings require tracking that is not available yet.</p>
+          <div class="mt-4 flex flex-wrap gap-3">
+            <input id="achievement-search" class="field" type="search" placeholder="Search achievements" aria-label="Search achievements"/>
+            <select id="achievement-category" class="field" aria-label="Filter achievements by category">
+              <option value="">All categories</option><option value="walking">Walking</option><option value="monster_hunting">Monster Hunting</option><option value="crystals_energy">Crystals and Energy</option><option value="consistency">Consistency</option><option value="special">Special Challenges</option>
+            </select>
+          </div>
+          <div id="hunt-achievements" class="mt-6 space-y-3" aria-live="polite"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: SETTINGS -->
+  <div id="page-settings" class="page bg-quest-canvas min-h-[calc(100vh-80px)]">
+    <form id="settings-form" class="p-8 lg:p-12 max-w-4xl mx-auto" novalidate>
+      <div class="mb-10">
+        <h2 class="font-headline text-4xl font-extrabold text-on-surface mb-2">Settings</h2>
+        <p class="text-on-surface-variant">Manage your administrative account.</p>
+      </div>
+      <div class="space-y-6">
+        <section class="bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <div class="flex items-center gap-3 mb-6"><div class="w-1 h-6 bg-primary rounded-full"></div><h3 class="font-headline text-xl font-bold">Profile</h3></div>
+          <div class="flex items-center gap-6 mb-6">
+            <div class="w-20 h-20 rounded-full bg-primary-container ring-4 ring-primary/20 flex items-center justify-center font-headline text-2xl font-extrabold text-on-primary-container admin-initials">A</div>
+            <div>
+              <p class="font-bold text-on-surface admin-name">Admin</p>
+              <p class="text-sm text-on-surface-variant admin-role">Administrator</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-2"><label class="field-label" for="set-username">Username</label><input id="set-username" class="field" maxlength="60"/></div>
+            <div class="flex flex-col gap-2"><label class="field-label" for="set-email">Email</label><input id="set-email" class="field text-on-surface-variant" readonly/></div>
+          </div>
+        </section>
+        <section class="bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+          <div class="flex items-center gap-3 mb-6"><div class="w-1 h-6 bg-primary rounded-full"></div><h3 class="font-headline text-xl font-bold">Preferences &amp; Security</h3></div>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-lg">
+              <div><p class="font-bold">Email Notifications</p><p class="text-xs text-on-surface-variant">Receive alerts for flags and reports</p></div>
+              <div id="toggle-email" class="toggle w-12 h-6 relative cursor-pointer shrink-0">
+                <div class="toggle-track w-full h-full rounded-full"></div>
+                <div class="toggle-thumb absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow"></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-lg">
+              <div><p class="font-bold">Password</p><p class="text-xs text-on-surface-variant">We'll email you a secure link to set a new password.</p></div>
+              <button type="button" data-action="reset-password" class="text-xs font-bold text-primary bg-primary/10 px-3 py-2 rounded-lg hover:bg-primary/20">Send reset link</button>
+            </div>
+          </div>
+        </section>
+        <div class="flex justify-end gap-4">
+          <button type="submit" id="settings-save" class="px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 active:scale-95 transition-all shadow-lg shadow-primary/20">Save Changes</button>
+        </div>
+        <section class="bg-error/5 rounded-xl p-8 border border-error/20">
+          <h3 class="font-headline text-xl font-bold text-error mb-4">Danger Zone</h3>
+          <div class="flex items-center justify-between gap-4">
+            <div><p class="font-bold text-sm">Sign out</p><p class="text-xs text-on-surface-variant">End your session on this device.</p></div>
+            <button type="button" data-action="logout" class="px-4 py-2 text-sm font-bold text-error border border-error/30 rounded-lg hover:bg-error hover:text-white transition-all">Sign Out</button>
+          </div>
+        </section>
+      </div>
+    </form>
+  </div>
+
+</div><!-- end #app -->
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

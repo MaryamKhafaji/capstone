@@ -1,0 +1,56 @@
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/key.properties
+**/local.properties
+**/*service-account*.json
+**/*serviceAccountKey*.json
+
+# Dependencies, caches, build outputs and logs
+**/node_modules/
+**/.dart_tool/
+**/.pub-cache/
+**/.pub/
+**/.flutter-plugins-dependencies
+**/.netlify/
+**/.gradle/
+**/.kotlin/
+**/.idea/
+**/build/
+**/coverage/
+**/*.log
+**/*.iml
+**/.DS_Store
+**/Thumbs.db
+
+# Unity generated data (Assets .meta files are intentionally tracked)
+app/unity/Library/
+app/unity/Temp/
+app/unity/Obj/
+app/unity/Build/
+app/unity/Builds/
+app/unity/Logs/
+app/unity/UserSettings/
+app/unity/.vs/
+app/unity/*.csproj
+app/unity/*.sln
+
+# Unity Android export is generated from app/unity before Flutter build.
+app/flutter/android/unity-export/
+app/flutter/android/unity-export-updated/
+app/flutter/android/app/debug/
+app/flutter/android/app/profile/
+app/flutter/android/app/release/
+# Local, one-time administrative repair script
+app/flutter/tool/backfill_earned_badges.cjs
+app/flutter/ios/Flutter/Generated.xcconfig
+app/flutter/ios/Flutter/flutter_export_environment.sh
+app/flutter/ios/Flutter/ephemeral/
+app/flutter/ios/Runner/GeneratedPluginRegistrant.*

@@ -1,0 +1,38 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/reward-images"
+  to = "/.netlify/functions/reward-images"
+  status = 200
+
+[[redirects]]
+  from = "/api/generate-description"
+  to = "/.netlify/functions/generate-description"
+  status = 200
+
+[[redirects]]
+  from = "/api/redeem-reward"
+  to = "/.netlify/functions/redeem-reward"
+  status = 200
+
+[[redirects]]
+  from = "/api/fulfill-reward"
+  to = "/.netlify/functions/fulfill-reward"
+  status = 200
+
+[[redirects]]
+  from = "/api/resolve-hunt-map"
+  to = "/.netlify/functions/resolve-hunt-map"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

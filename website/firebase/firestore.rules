@@ -1,0 +1,240 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function admin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    // Self-registered sponsors are active immediately, but not automatically verified as businesses.
+    // Existing approved sponsors remain compatible.
+    function sponsorOf(partnerId) {
+      return signedIn() && partnerId is string
+        && request.auth.uid == partnerId
+        && exists(/databases/$(database)/documents/partners/$(partnerId))
+        && get(/databases/$(database)/documents/partners/$(partnerId)).data.ownerUid == partnerId
+        && (
+          get(/databases/$(database)/documents/partners/$(partnerId)).data.status == 'active'
+          || (
+            get(/databases/$(database)/documents/partners/$(partnerId)).data.status == 'approved'
+            && get(/databases/$(database)/documents/partners/$(partnerId)).data.verified == true
+          )
+        );
+    }
+    function validSponsorSignup() {
+      return request.resource.data.keys().hasOnly([
+        'ownerUid','businessName','contactName','email','contactInfo','phone',
+        'industry','website','pickupLocation','description','logoUrl','status','verified','createdAt','updatedAt'
+      ]) && request.resource.data.keys().hasAll([
+        'ownerUid','businessName','contactName','email','contactInfo','phone',
+        'industry','website','pickupLocation','description','logoUrl','status','verified','createdAt','updatedAt'
+      ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.businessName is string
+        && request.resource.data.businessName.size() > 0
+        && request.resource.data.businessName.size() <= 150
+        && request.resource.data.contactName is string
+        && request.resource.data.contactName.size() > 0
+        && request.resource.data.contactName.size() <= 120
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.contactInfo == request.auth.token.email
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() > 0
+        && request.resource.data.phone.size() <= 40
+        && request.resource.data.industry is string
+        && request.resource.data.industry.size() > 0
+        && request.resource.data.industry.size() <= 100
+        && request.resource.data.website is string
+        && request.resource.data.website.size() <= 250
+        && request.resource.data.pickupLocation is string
+        && request.resource.data.pickupLocation.size() <= 250
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 1500
+        && request.resource.data.logoUrl == ''
+        && request.resource.data.status == 'active'
+        && request.resource.data.verified == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+    function validProduct() {
+      return request.resource.data.keys().hasOnly([
+        'partnerId','createdBy','title','description','rewardType',
+        'valueFils','quantityOffered','imageUrl','status','createdAt','updatedAt'
+      ]) && request.resource.data.keys().hasAll([
+        'partnerId','createdBy','title','description','rewardType',
+        'valueFils','quantityOffered','imageUrl','status','createdAt','updatedAt'
+      ])
+        && request.resource.data.partnerId is string
+        && request.resource.data.createdBy is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 140
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.rewardType in ['gift','voucher']
+        && request.resource.data.valueFils is int
+        && request.resource.data.valueFils > 0
+        && request.resource.data.valueFils <= 100000000
+        && request.resource.data.quantityOffered is int
+        && request.resource.data.quantityOffered > 0
+        && request.resource.data.quantityOffered <= 1000000
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.size() <= 1500
+        && request.resource.data.status in ['available','selected','unavailable','rejected']
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+    function publishedSponsorReward() {
+      // The full product quantity is allocated at selection, and valueFils == crystals.
+      // No KWD value is copied to the public reward document.
+      return !('sourceProductId' in request.resource.data)
+        || (
+          request.resource.data.sourceProductId is string
+          && getAfter(/databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)).data.status == 'selected'
+          && request.resource.data.partnerId == getAfter(/databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)).data.partnerId
+          && request.resource.data.crystalCost == getAfter(/databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)).data.valueFils
+          && request.resource.data.quantityTotal == getAfter(/databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)).data.quantityOffered
+          && request.resource.data.rewardType in ['gift','voucher']
+        );
+    }
+
+    match /admins/{adminId} {
+      allow get: if owner(adminId);
+      allow update: if owner(adminId) && request.resource.data.diff(resource.data)
+        .affectedKeys().hasOnly(['username','preferences']);
+      allow list, create, delete: if false;
+    }
+
+    match /partners/{partnerId} {
+      allow get: if admin() || owner(partnerId) || (signedIn() && resource.data.verified == true);
+      // Prevent exposure of self-registered sponsors' contact information to every player.
+      allow list: if admin();
+      allow create: if admin() || (owner(partnerId) && validSponsorSignup());
+      // Sponsors may upload/change their own logo. Only admins can suspend/verify companies.
+      allow update: if admin() || (
+        owner(partnerId) && sponsorOf(partnerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logoUrl','updatedAt'])
+        && request.resource.data.logoUrl is string
+        && request.resource.data.logoUrl.size() <= 1500
+        && request.resource.data.updatedAt == request.time
+      );
+      allow delete: if admin() && !('ownerUid' in resource.data);
+    }
+
+    match /sponsor_products/{productId} {
+      allow get, list: if admin() || sponsorOf(resource.data.partnerId);
+      allow create: if sponsorOf(request.resource.data.partnerId)
+        && validProduct()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'available'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      // Before selection: immediate editing by the sponsor, no change-request workflow.
+      allow update: if (
+        sponsorOf(resource.data.partnerId)
+        && resource.data.status == 'available'
+        && request.resource.data.partnerId == resource.data.partnerId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status == 'available'
+        && request.resource.data.updatedAt == request.time
+        && validProduct()
+      ) || (
+        admin()
+        && resource.data.partnerId == request.resource.data.partnerId
+        && resource.data.createdBy == request.resource.data.createdBy
+        && resource.data.createdAt == request.resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && validProduct()
+      );
+      allow delete: if false;
+    }
+
+    match /rewards/{rewardId} {
+      // Retain existing Flutter read compatibility. The app must filter to availStatus == 'Active'.
+      allow read: if signedIn();
+      allow create: if admin() && publishedSponsorReward();
+      allow update: if admin() && publishedSponsorReward()
+        && (
+          !('sourceProductId' in resource.data)
+          || (
+            request.resource.data.sourceProductId == resource.data.sourceProductId
+            && request.resource.data.partnerId == resource.data.partnerId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title','description','imageUrl','rewardType','crystalCost',
+              'quantityTotal','availStatus','updatedAt'
+            ])
+          )
+        );
+      allow delete: if admin() && !('sourceProductId' in resource.data);
+    }
+
+    match /user_rewards/{id} {
+      allow get, list: if admin() || (signedIn() && resource.data.userId == request.auth.uid);
+      // Claims and their fulfillment state are written by authenticated server Functions.
+      allow create, update, delete: if false;
+    }
+    match /reward_redemption_requests/{id} {
+      allow read: if admin();
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow create: if owner(userId)
+        && request.resource.data.keys().hasOnly([
+          'name','email','level','xp','totalSteps','crystals','streak','createdAt'
+        ])
+        && request.resource.data.level == 1
+        && request.resource.data.xp == 0
+        && request.resource.data.totalSteps == 0
+        && request.resource.data.crystals == 0
+        && request.resource.data.streak == 0
+        && request.resource.data.email == request.auth.token.email;
+      allow read: if owner(userId) || admin();
+      // IMPORTANT: Flutter earning code must be migrated before deploying these rules.
+      // Direct user-writable crystals would allow forging balances and defeat secure redemption.
+      allow update: if owner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','totalSteps','streak'
+        ]);
+      allow delete: if false;
+    }
+    match /walking_sessions/{sessionId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'userId','footwearId','startTime','endTime','numSteps',
+          'crystalsEarned','energyEarned','legend','distance','destination'
+        ]);
+      allow get, list: if admin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if false;
+    }
+    match /leaderboard/{userId} {
+      allow read: if signedIn();
+      allow create, update: if owner(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.keys().hasOnly([
+          'userId','name','totalSteps','streak','crystals'
+        ]);
+      allow delete: if false;
+    }
+    match /hunts/{id} { allow read: if signedIn(); allow write: if admin(); }
+    match /flags/{id} {
+      allow read, delete: if admin();
+      allow create, update: if admin()
+        && request.resource.data.keys().hasOnly([
+          'sessionID','userID','type','title','severity','status',
+          'details','legend','note','handledBy','createdAt','updatedAt'
+        ])
+        && request.resource.data.status in ['open','escalated','resolved']
+        && request.resource.data.severity in ['high','medium','low'];
+    }
+    match /session_records/{id} { allow read: if admin(); }
+    match /user_hunts/{id} { allow read: if admin(); }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

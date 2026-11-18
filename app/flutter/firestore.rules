@@ -1,0 +1,1058 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // AUTHENTICATION
+    // ==========================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function admin() {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/admins/$(request.auth.uid)
+        );
+    }
+
+    function sponsorOf(partnerId) {
+      return signedIn()
+        && partnerId is string
+        && request.auth.uid == partnerId
+        && exists(
+          /databases/$(database)/documents/partners/$(partnerId)
+        )
+        && get(
+          /databases/$(database)/documents/partners/$(partnerId)
+        ).data.ownerUid == partnerId
+        && (
+          get(
+            /databases/$(database)/documents/partners/$(partnerId)
+          ).data.status == 'active'
+          ||
+          (
+            get(
+              /databases/$(database)/documents/partners/$(partnerId)
+            ).data.status == 'approved'
+            &&
+            get(
+              /databases/$(database)/documents/partners/$(partnerId)
+            ).data.verified == true
+          )
+        );
+    }
+
+    // ==========================================
+    // SPONSOR VALIDATION
+    // ==========================================
+
+    function validSponsorSignup() {
+      return request.resource.data.keys().hasOnly([
+          'ownerUid', 'businessName', 'contactName',
+          'email', 'contactInfo', 'phone', 'industry',
+          'website', 'pickupLocation', 'description',
+          'logoUrl', 'status', 'verified',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'ownerUid', 'businessName', 'contactName',
+          'email', 'contactInfo', 'phone', 'industry',
+          'website', 'pickupLocation', 'description',
+          'logoUrl', 'status', 'verified',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.businessName is string
+        && request.resource.data.businessName.size() > 0
+        && request.resource.data.businessName.size() <= 150
+        && request.resource.data.contactName is string
+        && request.resource.data.contactName.size() > 0
+        && request.resource.data.contactName.size() <= 120
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.contactInfo == request.auth.token.email
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() > 0
+        && request.resource.data.phone.size() <= 40
+        && request.resource.data.industry is string
+        && request.resource.data.industry.size() > 0
+        && request.resource.data.industry.size() <= 100
+        && request.resource.data.website is string
+        && request.resource.data.website.size() <= 250
+        && request.resource.data.pickupLocation is string
+        && request.resource.data.pickupLocation.size() <= 250
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 1500
+        && request.resource.data.logoUrl == ''
+        && request.resource.data.status == 'active'
+        && request.resource.data.verified == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validProduct() {
+      return request.resource.data.keys().hasOnly([
+          'partnerId', 'createdBy', 'title',
+          'description', 'rewardType', 'valueFils',
+          'quantityOffered', 'imageUrl',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'partnerId', 'createdBy', 'title',
+          'description', 'rewardType', 'valueFils',
+          'quantityOffered', 'imageUrl',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.partnerId is string
+        && request.resource.data.createdBy is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 140
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.rewardType in [
+          'gift', 'voucher'
+        ]
+        && request.resource.data.valueFils is int
+        && request.resource.data.valueFils > 0
+        && request.resource.data.valueFils <= 100000000
+        && request.resource.data.quantityOffered is int
+        && request.resource.data.quantityOffered > 0
+        && request.resource.data.quantityOffered <= 1000000
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.size() <= 1500
+        && request.resource.data.status in [
+          'available', 'selected',
+          'unavailable', 'rejected'
+        ]
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function publishedSponsorReward() {
+      return !('sourceProductId' in request.resource.data)
+        ||
+        (
+          request.resource.data.sourceProductId is string
+          && getAfter(
+            /databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)
+          ).data.status == 'selected'
+          && request.resource.data.partnerId == getAfter(
+            /databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)
+          ).data.partnerId
+          && request.resource.data.crystalCost == getAfter(
+            /databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)
+          ).data.valueFils
+          && request.resource.data.quantityTotal == getAfter(
+            /databases/$(database)/documents/sponsor_products/$(request.resource.data.sourceProductId)
+          ).data.quantityOffered
+          && request.resource.data.rewardType in [
+            'gift', 'voucher'
+          ]
+        );
+    }
+
+    // ==========================================
+    // REDEMPTION VALIDATION
+    // ==========================================
+    //
+    // Required atomic transaction:
+    //
+    // users/{uid}:
+    //   crystals decreases by crystalCost
+    //   lastClaimId = claimId
+    //
+    // rewards/{rewardId}:
+    //   redeemedCount increases by 1
+    //   lastClaimId = claimId
+    //
+    // user_rewards/{claimId}:
+    //   created with matching IDs and cost
+    //
+    // All three writes MUST be in one
+    // Firestore transaction or atomic batch.
+    // ==========================================
+
+    function claimAfter(claimId) {
+      return getAfter(
+        /databases/$(database)/documents/user_rewards/$(claimId)
+      ).data;
+    }
+
+    function validClaimCreation(claimId) {
+      let uid = request.auth.uid;
+      let rewardId = request.resource.data.rewardId;
+      let userBefore = get(
+        /databases/$(database)/documents/users/$(uid)
+      ).data;
+      let userAfter = getAfter(
+        /databases/$(database)/documents/users/$(uid)
+      ).data;
+      let rewardBefore = get(
+        /databases/$(database)/documents/rewards/$(rewardId)
+      ).data;
+      let rewardAfter = getAfter(
+        /databases/$(database)/documents/rewards/$(rewardId)
+      ).data;
+
+      return request.resource.data.keys().hasOnly([
+          'userId', 'rewardId', 'crystalCost',
+          'claimCode', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'userId', 'rewardId', 'crystalCost',
+          'claimCode', 'status', 'createdAt'
+        ])
+        && request.resource.data.userId == uid
+        && request.resource.data.rewardId is string
+        && request.resource.data.rewardId.size() > 0
+        && request.resource.data.crystalCost is int
+        && request.resource.data.crystalCost > 0
+        && request.resource.data.claimCode is string
+        && request.resource.data.claimCode.matches(
+          '^[A-F0-9]{24}$'
+        )
+        && request.resource.data.status == 'issued'
+        && request.resource.data.createdAt == request.time
+
+        // Check valid reward.
+        && rewardBefore.availStatus == 'Active'
+        && rewardBefore.crystalCost is int
+        && rewardBefore.crystalCost > 0
+        && rewardBefore.quantityTotal is int
+        && rewardBefore.get('redeemedCount', 0) is int
+
+        // Correct crystal price.
+        && request.resource.data.crystalCost ==
+          rewardBefore.crystalCost
+
+        // Sufficient balance.
+        && userBefore.crystals is int
+        && userBefore.crystals >= rewardBefore.crystalCost
+
+        // Balance deducted in the SAME transaction.
+        && userAfter.crystals ==
+          userBefore.crystals - rewardBefore.crystalCost
+        && userAfter.lastClaimId == claimId
+
+        // Available inventory.
+        && rewardBefore.get('redeemedCount', 0) <
+          rewardBefore.quantityTotal
+
+        // Inventory updated in SAME transaction.
+        && rewardAfter.redeemedCount ==
+          rewardBefore.get('redeemedCount', 0) + 1
+        && rewardAfter.lastClaimId == claimId;
+    }
+
+    function validUserRedemption(uid) {
+      let claimId = request.resource.data.lastClaimId;
+      let claim = claimAfter(claimId);
+      let reward = get(
+        /databases/$(database)/documents/rewards/$(claim.rewardId)
+      ).data;
+      let rewardAfter = getAfter(
+        /databases/$(database)/documents/rewards/$(claim.rewardId)
+      ).data;
+
+      return claimId is string
+        && claimId.size() > 0
+        && !exists(
+          /databases/$(database)/documents/user_rewards/$(claimId)
+        )
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'crystals', 'lastClaimId'
+          ])
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasAll([
+            'crystals', 'lastClaimId'
+          ])
+        && claim.userId == uid
+        && claim.crystalCost == reward.crystalCost
+        && reward.availStatus == 'Active'
+        && resource.data.crystals is int
+        && resource.data.crystals >= reward.crystalCost
+        && request.resource.data.crystals ==
+          resource.data.crystals - reward.crystalCost
+        && request.resource.data.crystals >= 0
+        && rewardAfter.lastClaimId == claimId
+        && rewardAfter.redeemedCount ==
+          reward.get('redeemedCount', 0) + 1;
+    }
+
+    function validRewardRedemption(rewardId) {
+      let claimId = request.resource.data.lastClaimId;
+      let claim = claimAfter(claimId);
+      let userBefore = get(
+        /databases/$(database)/documents/users/$(claim.userId)
+      ).data;
+      let userAfter = getAfter(
+        /databases/$(database)/documents/users/$(claim.userId)
+      ).data;
+
+      return signedIn()
+        && claimId is string
+        && claimId.size() > 0
+        && !exists(
+          /databases/$(database)/documents/user_rewards/$(claimId)
+        )
+        && claim.userId == request.auth.uid
+        && claim.rewardId == rewardId
+        && claim.crystalCost == resource.data.crystalCost
+        && resource.data.availStatus == 'Active'
+        && resource.data.crystalCost is int
+        && resource.data.crystalCost > 0
+        && resource.data.quantityTotal is int
+        && resource.data.get('redeemedCount', 0) is int
+        && resource.data.get('redeemedCount', 0) <
+          resource.data.quantityTotal
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'redeemedCount', 'lastClaimId'
+          ])
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasAll([
+            'redeemedCount', 'lastClaimId'
+          ])
+        && request.resource.data.redeemedCount ==
+          resource.data.get('redeemedCount', 0) + 1
+        && userBefore.crystals is int
+        && userBefore.crystals >= resource.data.crystalCost
+        && userAfter.crystals ==
+          userBefore.crystals - resource.data.crystalCost
+        && userAfter.lastClaimId == claimId;
+    }
+
+    // ==========================================
+    // ADMINS
+    // ==========================================
+
+    match /admins/{adminId} {
+      allow get: if owner(adminId);
+
+      allow update: if owner(adminId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'username', 'preferences'
+          ]);
+
+      allow list, create, delete: if false;
+    }
+
+    // ==========================================
+    // PUBLIC PARTNERS — TEAMMATE'S COLLECTION
+    // ==========================================
+
+    match /public_partners/{partnerId} {
+      allow get, list: if signedIn();
+
+      allow create, update, delete: if admin()
+        && request.resource.data.keys().hasOnly([
+          'businessName',
+          'industry',
+          'description',
+          'logoUrl'
+        ]);
+    }
+
+    // ==========================================
+    // PARTNERS
+    // ==========================================
+
+    match /partners/{partnerId} {
+      allow get: if admin()
+        || owner(partnerId)
+        || (
+          signedIn()
+          && resource.data.verified == true
+        );
+
+      // Preserved from teammate's rules.
+      allow list: if signedIn();
+
+      allow create: if admin()
+        || (
+          owner(partnerId)
+          && validSponsorSignup()
+        );
+
+      allow update: if admin()
+        || (
+          owner(partnerId)
+          && sponsorOf(partnerId)
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly([
+              'logoUrl', 'updatedAt'
+            ])
+          && request.resource.data.logoUrl is string
+          && request.resource.data.logoUrl.size() <= 1500
+          && request.resource.data.updatedAt == request.time
+        );
+
+      allow delete: if admin()
+        && !('ownerUid' in resource.data);
+    }
+
+    // ==========================================
+    // SPONSOR PRODUCTS
+    // ==========================================
+
+    match /sponsor_products/{productId} {
+      allow get, list: if admin()
+        || sponsorOf(resource.data.partnerId);
+
+      allow create: if sponsorOf(
+          request.resource.data.partnerId
+        )
+        && validProduct()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'available'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if (
+          sponsorOf(resource.data.partnerId)
+          && resource.data.status == 'available'
+          && request.resource.data.status == 'available'
+          && request.resource.data.partnerId ==
+            resource.data.partnerId
+          && request.resource.data.createdBy ==
+            resource.data.createdBy
+          && request.resource.data.createdAt ==
+            resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && validProduct()
+        )
+        ||
+        (
+          admin()
+          && request.resource.data.partnerId ==
+            resource.data.partnerId
+          && request.resource.data.createdBy ==
+            resource.data.createdBy
+          && request.resource.data.createdAt ==
+            resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && validProduct()
+        );
+
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // REWARDS
+    // ==========================================
+
+    match /rewards/{rewardId} {
+      allow read: if signedIn();
+
+      allow create: if admin()
+        && publishedSponsorReward();
+
+      // Existing admin management.
+      allow update: if admin()
+        && publishedSponsorReward()
+        && (
+          !('sourceProductId' in resource.data)
+          ||
+          (
+            request.resource.data.sourceProductId ==
+              resource.data.sourceProductId
+            && request.resource.data.partnerId ==
+              resource.data.partnerId
+            && request.resource.data.createdAt ==
+              resource.data.createdAt
+            && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly([
+                'title', 'description', 'imageUrl',
+                'rewardType', 'crystalCost',
+                'quantityTotal', 'availStatus',
+                'updatedAt'
+              ])
+          )
+        );
+
+      // NEW: direct client redemption, transaction only.
+      allow update: if validRewardRedemption(rewardId);
+
+      allow delete: if admin()
+        && !('sourceProductId' in resource.data);
+    }
+
+    // ==========================================
+    // USER REWARD CLAIMS
+    // ==========================================
+
+    match /user_rewards/{claimId} {
+      allow get, list: if admin()
+        || (
+          signedIn()
+          && resource.data.userId == request.auth.uid
+        );
+
+      // NEW: allows claims only when the same transaction
+      // deducts crystals and increments reward redemption.
+      allow create: if signedIn()
+        && validClaimCreation(claimId);
+
+      // Players cannot alter or delete issued claims.
+      // Fulfillment remains backend-controlled.
+      allow update, delete: if false;
+    }
+
+    // ==========================================
+    // REDEMPTION REQUEST TRACKING
+    // ==========================================
+
+    match /reward_redemption_requests/{id} {
+      allow read: if admin();
+      allow create, update, delete: if false;
+    }
+
+    // ==========================================
+    // GEMINI DESCRIPTION USAGE
+    // ==========================================
+
+    match /ai_description_usage/{id} {
+      allow read: if admin();
+      allow create, update, delete: if false;
+    }
+
+    // ==========================================
+    // USERS — FLUTTER
+    // ==========================================
+
+    match /users/{userId} {
+      allow create: if owner(userId)
+        && request.resource.data.keys().hasOnly([
+          'name', 'email', 'level', 'xp',
+          'totalSteps', 'crystals', 'streak',
+          'createdAt'
+        ])
+        && request.resource.data.level == 1
+        && request.resource.data.xp == 0
+        && request.resource.data.totalSteps == 0
+        && request.resource.data.crystals == 0
+        && request.resource.data.streak == 0
+        && request.resource.data.email ==
+          request.auth.token.email;
+
+      allow read: if owner(userId) || admin();
+
+      // Existing profile and activity updates.
+      allow update: if owner(userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'name', 'totalSteps', 'streak'
+          ]);
+
+      // AR session synchronization: update steps and earned crystals
+      // together without changing any other profile fields.
+      allow update: if owner(userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'totalSteps', 'crystals'
+          ])
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasAll([
+            'totalSteps', 'crystals'
+          ])
+        && resource.data.totalSteps is int
+        && resource.data.crystals is int
+        && request.resource.data.totalSteps is int
+        && request.resource.data.crystals is int
+        && request.resource.data.totalSteps > resource.data.totalSteps
+        && request.resource.data.crystals >= resource.data.crystals;
+
+      // Match each balance change to a new hunt in the same transaction.
+      allow update: if owner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['totalSteps', 'crystals', 'streak', 'lastHuntId'])
+        && request.resource.data.lastHuntId is string
+        && request.resource.data.lastHuntId.size() > 0
+        && !exists(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId))
+        && getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.userId == userId
+        && getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.numSteps is int
+        && getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.numSteps >= 0
+        && getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.crystalsEarned is int
+        && getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.crystalsEarned >= 0
+        && request.resource.data.get('totalSteps', 0) is int
+        && request.resource.data.get('crystals', 0) is int
+        && request.resource.data.get('streak', 0) is int
+        && request.resource.data.get('totalSteps', 0) == resource.data.get('totalSteps', 0) + getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.numSteps
+        && request.resource.data.get('crystals', 0) == resource.data.get('crystals', 0) + getAfter(/databases/$(database)/documents/walking_sessions/$(request.resource.data.lastHuntId)).data.crystalsEarned
+        && request.resource.data.get('streak', 0) >= 0;
+
+      // NEW: redemption-only crystal deduction.
+      allow update: if owner(userId)
+        && validUserRedemption(userId);
+
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // WALKING SESSIONS
+    // ==========================================
+
+    match /walking_sessions/{sessionId} {
+      // A transaction checks for a prior record before creating it.
+      allow get: if signedIn()
+        && !exists(/databases/$(database)/documents/walking_sessions/$(sessionId));
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'userId', 'footwearId', 'startTime',
+          'endTime', 'numSteps', 'crystalsEarned',
+          'energyEarned', 'legend',
+          'distance', 'destination',
+          'recordType', 'sessionId', 'currentEnergy',
+          'hunts', 'huntCount'
+        ])
+        && (
+          !('recordType' in request.resource.data)
+          || (
+            request.resource.data.recordType == 'ar_session'
+            && request.resource.data.sessionId == sessionId
+            && request.resource.data.hunts is list
+            && request.resource.data.huntCount is int
+            && request.resource.data.huntCount ==
+              request.resource.data.hunts.size()
+          )
+        );
+
+      allow get, list: if admin()
+        || (
+          signedIn()
+          && resource.data.userId == request.auth.uid
+        );
+
+      allow update, delete: if false;
+    }
+
+    // ==========================================
+    // LEADERBOARD
+    // ==========================================
+
+    match /leaderboard/{userId} {
+      allow read: if signedIn();
+
+      allow create, update: if owner(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.keys().hasOnly([
+          'userId', 'name', 'totalSteps',
+          'streak', 'crystals'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // HUNTS
+    // ==========================================
+
+    match /hunts/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    function huntMonster(id) {
+      return id in ['bu_daryah', 'om_el_saaf'];
+    }
+
+    match /monsters/{monsterId} {
+      allow list: if admin();
+      allow get: if admin() || (signedIn() && huntMonster(monsterId));
+      allow create: if admin() && huntMonster(monsterId)
+        && request.resource.data.keys().hasOnly(['name', 'spawnCatalogEnabled'])
+        && request.resource.data.name is string
+        && request.resource.data.spawnCatalogEnabled == true;
+      allow update: if admin() && huntMonster(monsterId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'spawnCatalogEnabled'])
+        && request.resource.data.name is string
+        && request.resource.data.spawnCatalogEnabled == true;
+
+      match /spawn_locations/{locationId} {
+        allow read: if signedIn() && huntMonster(monsterId);
+        allow delete: if admin() && huntMonster(monsterId);
+        allow create, update: if admin() && huntMonster(monsterId)
+          && request.resource.data.keys().hasOnly([
+            'name', 'mapsUrl', 'latitude', 'longitude', 'arrivalRadiusMeters'
+          ])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.mapsUrl is string
+          && request.resource.data.mapsUrl.size() <= 2048
+          && request.resource.data.mapsUrl.matches('^https://((www[.])?google[.]com/maps/.*|maps[.]google[.]com/.*|maps[.]app[.]goo[.]gl/.*|goo[.]gl/maps/.*)$')
+          && request.resource.data.latitude is number
+          && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+          && request.resource.data.longitude is number
+          && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+          && request.resource.data.arrivalRadiusMeters is int
+          && request.resource.data.arrivalRadiusMeters >= 10
+          && request.resource.data.arrivalRadiusMeters <= 250;
+      }
+    }
+
+    function validAchievement(data) {
+      return data.keys().hasOnly(['name', 'description', 'metric', 'target', 'active', 'monsterId', 'category', 'imageUrl'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 500
+        && data.active is bool
+        && data.get('category', '') is string
+        && data.get('imageUrl', '') is string
+        && data.get('imageUrl', '').size() <= 1500
+        && data.target is int && data.target >= 1 && data.target <= 1000000
+        && (data.metric == 'monster'
+          ? huntMonster(data.monsterId) && data.target == 1
+          : data.monsterId == '' && (
+              (data.metric == 'hunt' && data.target == 1) ||
+              data.metric in ['hunt_steps', 'hunt_crystals', 'total_steps', 'active_day_streak']
+            ));
+    }
+
+    match /achievements/{achievementId} {
+      allow read: if admin() || (signedIn() && resource.data.active == true);
+      allow get: if signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/earned_badges/$(achievementId));
+      allow create, update: if admin() && validAchievement(request.resource.data);
+    }
+
+    function huntQualifies(session, badge, userId) {
+      return session.userId == userId
+        && session.startTime is timestamp && session.endTime is timestamp
+        && session.endTime >= session.startTime
+        && session.legend in ['Bu Daryah', 'Om El-Saaf']
+        && (badge.metric == 'hunt'
+          || (badge.metric == 'monster' && (
+            (badge.monsterId == 'bu_daryah' && session.legend == 'Bu Daryah') ||
+            (badge.monsterId == 'om_el_saaf' && session.legend == 'Om El-Saaf')
+          ))
+          || (badge.metric == 'hunt_steps' && session.numSteps is int && session.numSteps >= badge.target)
+          || (badge.metric == 'hunt_crystals' && session.crystalsEarned is int && session.crystalsEarned >= badge.target));
+    }
+
+    function validEarnedBadge(userId, achievementId, data) {
+      let badge = get(/databases/$(database)/documents/achievements/$(achievementId)).data;
+      return data.keys().hasOnly(['name', 'description', 'sessionId', 'earnedAt', 'imageUrl', 'category'])
+        && data.sessionId is string && data.sessionId.matches('^[^/]{1,150}$')
+        && data.earnedAt == request.time
+        && badge.active == true
+        && data.name == badge.name && data.description == badge.description
+        && (!('imageUrl' in data) || data.imageUrl == badge.get('imageUrl', ''))
+        && (!('category' in data) || data.category == badge.get('category', '') ||
+          (badge.get('category', '') == '' && (
+            (data.category == 'monster_hunting' && badge.metric in ['hunt', 'monster']) ||
+            (data.category == 'walking' && badge.metric in ['hunt_steps', 'total_steps']) ||
+            (data.category == 'crystals_energy' && badge.metric == 'hunt_crystals') ||
+            (data.category == 'consistency' && badge.metric == 'active_day_streak')
+          )) || (data.category == '' && badge.get('category', '') == ''))
+        && (badge.metric in ['total_steps', 'active_day_streak']
+          ? (badge.metric == 'total_steps'
+            ? get(/databases/$(database)/documents/users/$(userId)).data.get('totalSteps', 0) >= badge.target
+            : get(/databases/$(database)/documents/users/$(userId)).data.get('streak', 0) >= badge.target)
+          : huntQualifies(
+              get(/databases/$(database)/documents/walking_sessions/$(data.sessionId)).data,
+              badge, userId));
+    }
+
+    match /users/{userId}/earned_badges/{achievementId} {
+      allow read: if owner(userId) || admin();
+      allow create: if owner(userId) && validEarnedBadge(userId, achievementId, request.resource.data);
+    }
+
+    // ==========================================
+    // FLAGS
+    // ==========================================
+
+    match /flags/{flagId} {
+      allow read, delete: if admin();
+
+      allow create, update: if admin()
+        && request.resource.data.keys().hasOnly([
+          'sessionID', 'userID', 'type',
+          'title', 'severity', 'status',
+          'details', 'legend', 'note',
+          'handledBy', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.status in [
+          'open', 'escalated', 'resolved'
+        ]
+        && request.resource.data.severity in [
+          'high', 'medium', 'low'
+        ];
+    }
+
+    // ==========================================
+    // EXISTING ADMIN DATA
+    // ==========================================
+
+    match /session_records/{id} {
+      allow read: if admin();
+    }
+
+    match /user_hunts/{id} {
+      allow read: if admin();
+    }
+
+    // ==========================================
+    // OLD SPONSOR CHANGE REQUESTS
+    // ==========================================
+
+    match /sponsor_change_requests/{id} {
+      allow read, write: if false;
+    }
+
+    // =====================================================
+    // 20. FREEJ — SPARK PLAN
+    // =====================================================
+
+    match /freej/{freejId} {
+      allow read: if signedIn();
+
+      // Create a Freej
+      allow create: if signedIn()
+        && freejId.matches('^[A-HJ-NP-Z2-9]{10}$')
+        && request.resource.data.keys().hasOnly([
+          'name', 'inviteCode', 'captainUid',
+          'memberCount', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'name', 'inviteCode', 'captainUid',
+          'memberCount', 'createdAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 3
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.inviteCode == freejId
+        && request.resource.data.captainUid == request.auth.uid
+        && request.resource.data.memberCount == 1
+        && request.resource.data.createdAt == request.time
+        && !exists(
+          /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+        )
+        && getAfter(
+          /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+        ).data.freejId == freejId
+        && getAfter(
+          /databases/$(database)/documents/freej/$(freejId)/members/$(request.auth.uid)
+        ).data.uid == request.auth.uid;
+
+      // Join, leave, transfer captain
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['memberCount', 'captainUid'])
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.inviteCode == resource.data.inviteCode
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          // Join
+          (
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['memberCount'])
+            && request.resource.data.memberCount ==
+              resource.data.memberCount + 1
+            && !exists(
+              /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+            )
+            && !exists(
+              /databases/$(database)/documents/freej/$(freejId)/members/$(request.auth.uid)
+            )
+            && getAfter(
+              /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+            ).data.freejId == freejId
+            && getAfter(
+              /databases/$(database)/documents/freej/$(freejId)/members/$(request.auth.uid)
+            ).data.uid == request.auth.uid
+          )
+          ||
+          // Leave
+          (
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['memberCount'])
+            && request.resource.data.memberCount ==
+              resource.data.memberCount - 1
+            && resource.data.memberCount > 1
+            && resource.data.captainUid != request.auth.uid
+            && get(
+              /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+            ).data.freejId == freejId
+            && !existsAfter(
+              /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+            )
+            && !existsAfter(
+              /databases/$(database)/documents/freej/$(freejId)/members/$(request.auth.uid)
+            )
+          )
+          ||
+          // Transfer captain
+          (
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['captainUid'])
+            && resource.data.captainUid == request.auth.uid
+            && request.resource.data.captainUid is string
+            && request.resource.data.captainUid != request.auth.uid
+            && exists(
+              /databases/$(database)/documents/freej/$(freejId)/members/$(request.resource.data.captainUid)
+            )
+          )
+        );
+
+      // Delete empty Freej
+      allow delete: if signedIn()
+        && resource.data.captainUid == request.auth.uid
+        && resource.data.memberCount == 1
+        && get(
+          /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+        ).data.freejId == freejId
+        && !existsAfter(
+          /databases/$(database)/documents/freej_user_memberships/$(request.auth.uid)
+        )
+        && !existsAfter(
+          /databases/$(database)/documents/freej/$(freejId)/members/$(request.auth.uid)
+        );
+
+      // Freej members
+      match /members/{memberId} {
+        allow read: if signedIn();
+
+        allow create: if owner(memberId)
+          && request.resource.data.keys().hasOnly([
+            'uid', 'joinedAt'
+          ])
+          && request.resource.data.keys().hasAll([
+            'uid', 'joinedAt'
+          ])
+          && request.resource.data.uid == memberId
+          && request.resource.data.joinedAt == request.time
+          && !exists(
+            /databases/$(database)/documents/freej_user_memberships/$(memberId)
+          )
+          && getAfter(
+            /databases/$(database)/documents/freej_user_memberships/$(memberId)
+          ).data.freejId == freejId
+          && getAfter(
+            /databases/$(database)/documents/freej/$(freejId)
+          ).data.memberCount ==
+            (
+              exists(/databases/$(database)/documents/freej/$(freejId))
+              ? get(
+                  /databases/$(database)/documents/freej/$(freejId)
+                ).data.memberCount + 1
+              : 1
+            );
+
+        allow delete: if owner(memberId)
+          && get(
+            /databases/$(database)/documents/freej_user_memberships/$(memberId)
+          ).data.freejId == freejId
+          && !existsAfter(
+            /databases/$(database)/documents/freej_user_memberships/$(memberId)
+          )
+          && (
+            (
+              existsAfter(
+                /databases/$(database)/documents/freej/$(freejId)
+              )
+              && getAfter(
+                /databases/$(database)/documents/freej/$(freejId)
+              ).data.memberCount ==
+                get(
+                  /databases/$(database)/documents/freej/$(freejId)
+                ).data.memberCount - 1
+            )
+            ||
+            (
+              !existsAfter(
+                /databases/$(database)/documents/freej/$(freejId)
+              )
+              && get(
+                /databases/$(database)/documents/freej/$(freejId)
+              ).data.memberCount == 1
+            )
+          );
+
+        allow update: if false;
+      }
+    }
+
+    // One Freej membership per user
+    match /freej_user_memberships/{userId} {
+      allow get: if owner(userId);
+      allow list: if false;
+
+      allow create: if owner(userId)
+        && request.resource.data.keys().hasOnly([
+          'freejId', 'joinedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'freejId', 'joinedAt'
+        ])
+        && request.resource.data.freejId is string
+        && request.resource.data.joinedAt == request.time
+        && getAfter(
+          /databases/$(database)/documents/freej/$(request.resource.data.freejId)/members/$(userId)
+        ).data.uid == userId
+        && getAfter(
+          /databases/$(database)/documents/freej/$(request.resource.data.freejId)
+        ).data.memberCount ==
+          (
+            exists(
+              /databases/$(database)/documents/freej/$(request.resource.data.freejId)
+            )
+            ? get(
+                /databases/$(database)/documents/freej/$(request.resource.data.freejId)
+              ).data.memberCount + 1
+            : 1
+          );
+
+      allow delete: if owner(userId)
+        && resource.data.freejId is string
+        && !existsAfter(
+          /databases/$(database)/documents/freej/$(resource.data.freejId)/members/$(userId)
+        )
+        && (
+          (
+            existsAfter(
+              /databases/$(database)/documents/freej/$(resource.data.freejId)
+            )
+            && getAfter(
+              /databases/$(database)/documents/freej/$(resource.data.freejId)
+            ).data.memberCount ==
+              get(
+                /databases/$(database)/documents/freej/$(resource.data.freejId)
+              ).data.memberCount - 1
+          )
+          ||
+          (
+            !existsAfter(
+              /databases/$(database)/documents/freej/$(resource.data.freejId)
+            )
+            && get(
+              /databases/$(database)/documents/freej/$(resource.data.freejId)
+            ).data.memberCount == 1
+          )
+        );
+
+      allow update: if false;
+    }
+
+    // ==========================================
+    // DEFAULT DENY
+    // ==========================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
