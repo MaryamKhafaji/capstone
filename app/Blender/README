@@ -1,0 +1,17 @@
+# MasAR+ — Blender Files
+This folder contains the Blender models and 3D assets created for MasAR+. The files are organized into separate folders to make them easier to find and manage.
+
+## Folder Structure
+### Assets
+Contains the 3D assets used throughout the game, including gameplay objects for all three characters, collectible cards, and other supporting models.
+
+### BuDaryah
+Contains Bu Daryah's 3D character model.
+### OmAlsaaf
+Contains Om El-Saaf's 3D character model.
+### Tantal
+Contains Tantal's 3D character model.
+
+## Notes
+- The `.blend` files contain the editable Blender models.
+- Keep the original Blender files so the models can be modified or updated when needed.
