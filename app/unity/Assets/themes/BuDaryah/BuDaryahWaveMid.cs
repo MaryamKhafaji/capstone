@@ -1,11 +1,21 @@
 using UnityEngine;
 
-// Visible but gentle sea layer; the principal advancing / retreating water.
+
+/// <summary>
+/// Sets the appearance of Bu Daryah's main moving wave.
+/// This layer gives the sea most of its visible motion and color.
+/// </summary>
 [AddComponentMenu("MasAR+/Bu Daryah/Wave Mid")]
 public class BuDaryahWaveMid : BuDaryahWaveLayerBase
 {
+    /// <summary>
+    /// Applies the default wave settings when the component is added.
+    /// </summary>
     private void Reset() => ApplyShorelineDefaults();
 
+    /// <summary>
+    /// Sets the colors, shape, speed, and transparency for this wave layer.
+    /// </summary>
     [ContextMenu("Apply Shoreline Defaults")]
     private void ApplyShorelineDefaults()
     {

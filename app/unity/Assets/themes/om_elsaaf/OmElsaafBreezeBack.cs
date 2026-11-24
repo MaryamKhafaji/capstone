@@ -1,9 +1,16 @@
 using UnityEngine;
 
-// Muted, wide background sand-haze. Attach to OmElsaafTheme > backBreeze.
+
+/// <summary>
+/// Sets the colors and movement of Om Elsaaf's background breeze.
+/// It adds a wide, faint layer of drifting sand near the bottom of the HUD.
+/// </summary>
 [AddComponentMenu("MasAR+/Om Elsaaf/Breeze Back")]
 public class OmElsaafBreezeBack : OmElsaafBreezeLayerBase
 {
+    /// <summary>
+    /// Sets the default colors, movement, and transparency for this layer.
+    /// </summary>
     private void Reset()
     {
         sandColor = new Color32(162, 147, 121, 255);

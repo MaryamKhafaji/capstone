@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/shared_widgets.dart';
@@ -459,14 +460,67 @@ class _CloseRangeHuntToggleState extends State<_CloseRangeHuntToggle> {
   }
 
   @override
-  Widget build(BuildContext context) => SwitchListTile.adaptive(
+  Widget build(BuildContext context) => ListTile(
     title: const Text('Close-range AR testing'),
-    subtitle: const Text('Spawn monsters nearby for testing. Turn off to hunt at real-world locations.'),
-    value: _enabled ?? false,
-    onChanged: _enabled == null ? null : (value) async {
-      await UnityHuntBridge.setCloseRangeDebug(value);
-      if (mounted) setState(() => _enabled = value);
+    subtitle: const Text('Spawn monsters nearby for testing. Turn off to hunt at real-world locations.\nTap to view nearby hunt locations.'),
+    isThreeLine: true,
+    onTap: () {
+      final nearby = UnityHuntBridge.previewNearbyHunts();
+      showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+        title: const Text('Nearby hunt locations'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: nearby,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Column(mainAxisSize: MainAxisSize.min, children: [
+                  CircularProgressIndicator(), SizedBox(height: 16),
+                  Text('Checking your location and nearby hunts…'),
+                ]);
+              }
+              if (snapshot.hasError) {
+                final error = snapshot.error;
+                return Text(error is PlatformException
+                    ? error.message ?? 'Could not load nearby hunts.'
+                    : 'Could not load nearby hunts. Check your connection and try again.');
+              }
+              final locations = snapshot.data ?? [];
+              return SingleChildScrollView(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Available in real-world location mode. Close-range testing chooses a monster without GPS.'),
+                  const SizedBox(height: 12),
+                  if (locations.isEmpty) const Text('No hunt locations are currently within range.')
+                  else ...locations.map((site) {
+                    final monster = switch (site['monsterId']) {
+                      'bu_daryah' => 'Bu Daryah',
+                      'om_el_saaf' => 'Om El Saaf',
+                      'tantal' => 'Tantal',
+                      'hamaret_al_qayla' => 'Hamaret Al Qayla',
+                      _ => site['monsterId'].toString(),
+                    };
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text('$monster: ${site['siteName']} (${site['distanceMeters']} m away)'),
+                    );
+                  }),
+                ],
+              ));
+            },
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ));
     },
+    trailing: Switch.adaptive(
+      value: _enabled ?? false,
+      onChanged: _enabled == null ? null : (value) async {
+        await UnityHuntBridge.setCloseRangeDebug(value);
+        if (mounted) setState(() => _enabled = value);
+      },
+    ),
   );
 }
 

@@ -1,9 +1,16 @@
 using UnityEngine;
 
-// Main gentle moving sandy breeze. Attach to OmElsaafTheme > midBreeze.
+
+/// <summary>
+/// Sets the appearance of Om Elsaaf's main sandy breeze.
+/// This layer carries most of the visible wind movement.
+/// </summary>
 [AddComponentMenu("MasAR+/Om Elsaaf/Breeze Mid")]
 public class OmElsaafBreezeMid : OmElsaafBreezeLayerBase
 {
+    /// <summary>
+    /// Sets the default colors, movement, and transparency for this layer.
+    /// </summary>
     private void Reset()
     {
         sandColor = new Color32(190, 163, 124, 255);

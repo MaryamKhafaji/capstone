@@ -72,6 +72,21 @@ public class NavigationSystem : MonoBehaviour
         if (userTransform == null || !destinationInitialized)
             return;
 
+        if (HuntLocationGuide.Active && !HuntLocationGuide.AtDestination)
+        {
+            if (!HuntLocationGuide.HasFix) return;
+            var location = HuntLocationGuide.Current;
+            destinationName = location.siteName;
+            remainingDistanceMeters = location.distanceMeters;
+            remainingDistanceKm = remainingDistanceMeters / 1000f;
+            etaMinutes = Mathf.CeilToInt(remainingDistanceKm / 4f * 60f);
+            hasArrived = false;
+            fixedDestination = userTransform.position + HuntLocationGuide.Direction * 6f;
+            fixedDestination.y = destinationGroundY;
+            if (destinationVisual != null) destinationVisual.position = fixedDestination;
+            return;
+        }
+
         UpdateNavigationData();
 
         if (destinationVisual != null)

@@ -21,6 +21,12 @@ Sponsors only enter: product name, optional photo, type (**Gift or Voucher**), *
 
 ## Database collections
 
+### Hunt location walking time
+
+The Hunts location form offers 15, 30, 45, or 60 minutes. `/api/hunt-walking-range` converts the choice on the server at 4 km/h: 1, 2, 3, or 4 km. This is a straight-line proximity estimate, not a routed walking ETA. Each `monsters/{id}/spawn_locations/{id}` document stores `walkingMinutes` and the derived `maxSearchMeters`. Android filters each location by its own limit. Existing locations without these fields retain the 60-minute default. Pins are destinations, not player starting positions. A black loading screen covers location selection, then the normal hunt offer appears immediately. The internal `arrivalRadiusMeters` determines when travel guidance changes into the final encounter; it does not block the Hunt button. GPS stays active throughout the hunt. Initial directional cues use the phone compass, with alignment refined from GPS and XR movement after walking; compass alignment and cue visibility need testing on the XREAL glasses outdoors.
+
+The current complete Firestore rules are maintained in the Flutter project's `firestore.rules`; this folder's older `firebase/firestore.rules` is a legacy template. The current rules support both legacy spawn documents and the new walking-time fields.
+
 Reused: `partners`, `rewards`, `users`, `user_rewards`, `admins`, `walking_sessions`, `leaderboard`, `hunts`, `flags`, `session_records`, and `user_hunts`.
 
 New: **`sponsor_products`** for offered gift/voucher catalog, **`reward_redemption_requests`** for retry-safe debits, and **`ai_description_usage`** for a five-per-day usage cap. `sponsor_change_requests` is **no longer used**. Do not delete old collections/data without a backup. Firestore creates collections on the first write.

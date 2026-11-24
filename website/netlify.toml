@@ -30,6 +30,11 @@
   to = "/.netlify/functions/resolve-hunt-map"
   status = 200
 
+[[redirects]]
+  from = "/api/hunt-walking-range"
+  to = "/.netlify/functions/hunt-walking-range"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

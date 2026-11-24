@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'hunt_result_service.dart';
 import 'hunt_achievements.dart';
@@ -24,6 +25,44 @@ class UnityHuntBridge {
   static Future<void> setCloseRangeDebug(bool enabled) async {
     await (await SharedPreferences.getInstance())
         .setBool(_debugModeKey, enabled);
+  }
+
+  static Future<String> _loadSpawnCatalog() async {
+    final entries = await Future.wait(['bu_daryah', 'om_el_saaf', 'tantal', 'hamaret_al_qayla'].map((id) async {
+      final ref = FirebaseFirestore.instance.collection('monsters').doc(id);
+      final monster = await ref.get(const GetOptions(source: Source.server));
+      if (monster.data()?['spawnCatalogEnabled'] != true) return null;
+      final sites = await ref.collection('spawn_locations').get(const GetOptions(source: Source.server));
+      return MapEntry(id, sites.docs.map((site) {
+        final data = site.data();
+        return {
+          'monsterId': id,
+          'name': data['name'] as String,
+          'latitude': data['latitude'] as num,
+          'longitude': data['longitude'] as num,
+          'arrivalRadiusMeters': data['arrivalRadiusMeters'] as num,
+          if (data['maxSearchMeters'] is num) 'maxSearchMeters': data['maxSearchMeters'] as num,
+        };
+      }).toList());
+    }));
+    return jsonEncode(Map.fromEntries(entries.nonNulls));
+  }
+
+  static Future<List<Map<String, dynamic>>> previewNearbyHunts() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      throw PlatformException(code: 'auth_required', message: 'Sign in to view nearby hunts.');
+    }
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw PlatformException(code: 'unsupported', message: 'Nearby hunts are available on Android.');
+    }
+    final permission = await Permission.locationWhenInUse.request();
+    if (!permission.isGranted) {
+      throw PlatformException(code: 'location_permission', message: 'Allow precise location to see nearby hunts.');
+    }
+    final catalog = await _loadSpawnCatalog();
+    final response = await _channel.invokeMethod<String>('previewNearbyHunts', {'spawnCatalog': catalog});
+    return (jsonDecode(response ?? '[]') as List)
+        .map((entry) => Map<String, dynamic>.from(entry as Map)).toList();
   }
 
   static Future<void> launch() async {
@@ -61,24 +100,7 @@ class UnityHuntBridge {
       }
       crystals = (profile.data()?['crystals'] as num?)?.toInt() ?? 0;
       try {
-        final entries = await Future.wait(['bu_daryah', 'om_el_saaf'].map((id) async {
-          final ref = FirebaseFirestore.instance.collection('monsters').doc(id);
-          final monster = await ref.get(const GetOptions(source: Source.server));
-          if (monster.data()?['spawnCatalogEnabled'] != true) return null;
-          final sites = await ref.collection('spawn_locations')
-              .get(const GetOptions(source: Source.server));
-          return MapEntry(id, sites.docs.map((site) {
-            final data = site.data();
-            return {
-              'monsterId': id,
-              'name': data['name'] as String,
-              'latitude': data['latitude'] as num,
-              'longitude': data['longitude'] as num,
-              'arrivalRadiusMeters': data['arrivalRadiusMeters'] as num,
-            };
-          }).toList());
-        }));
-        spawnCatalog = jsonEncode(Map.fromEntries(entries.nonNulls));
+        spawnCatalog = await _loadSpawnCatalog();
       } catch (error) {
         throw PlatformException(
           code: 'spawn_catalog_unavailable',

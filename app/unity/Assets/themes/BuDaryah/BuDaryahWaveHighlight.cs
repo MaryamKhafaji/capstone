@@ -1,11 +1,21 @@
 using UnityEngine;
 
-// Minimal pale, pearly edge that follows the incoming surf toward the shore.
+
+/// <summary>
+/// Sets the appearance of the pale foam on Bu Daryah's waves.
+/// The foam becomes wider and brighter as a wave reaches the shore.
+/// </summary>
 [AddComponentMenu("MasAR+/Bu Daryah/Wave Highlight")]
 public class BuDaryahWaveHighlight : BuDaryahWaveLayerBase
 {
+    /// <summary>
+    /// Applies the default wave settings when the component is added.
+    /// </summary>
     private void Reset() => ApplyShorelineDefaults();
 
+    /// <summary>
+    /// Sets the colors, shape, speed, and transparency for this wave layer.
+    /// </summary>
     [ContextMenu("Apply Shoreline Defaults")]
     private void ApplyShorelineDefaults()
     {

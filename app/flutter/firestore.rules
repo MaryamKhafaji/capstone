@@ -666,7 +666,7 @@ service cloud.firestore {
     }
 
     function huntMonster(id) {
-      return id in ['bu_daryah', 'om_el_saaf'];
+      return id in ['bu_daryah', 'om_el_saaf', 'tantal', 'hamaret_al_qayla'];
     }
 
     match /monsters/{monsterId} {
@@ -687,7 +687,8 @@ service cloud.firestore {
         allow delete: if admin() && huntMonster(monsterId);
         allow create, update: if admin() && huntMonster(monsterId)
           && request.resource.data.keys().hasOnly([
-            'name', 'mapsUrl', 'latitude', 'longitude', 'arrivalRadiusMeters'
+            'name', 'mapsUrl', 'latitude', 'longitude', 'arrivalRadiusMeters',
+            'walkingMinutes', 'maxSearchMeters'
           ])
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
@@ -701,7 +702,12 @@ service cloud.firestore {
           && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
           && request.resource.data.arrivalRadiusMeters is int
           && request.resource.data.arrivalRadiusMeters >= 10
-          && request.resource.data.arrivalRadiusMeters <= 250;
+          && request.resource.data.arrivalRadiusMeters <= 250
+          && (
+            (!('walkingMinutes' in request.resource.data) && !('maxSearchMeters' in request.resource.data))
+            || (request.resource.data.walkingMinutes in [15, 30, 45, 60]
+              && request.resource.data.maxSearchMeters == request.resource.data.walkingMinutes * 4000 / 60)
+          );
       }
     }
 
@@ -732,11 +738,13 @@ service cloud.firestore {
       return session.userId == userId
         && session.startTime is timestamp && session.endTime is timestamp
         && session.endTime >= session.startTime
-        && session.legend in ['Bu Daryah', 'Om El-Saaf']
+        && session.legend in ['Bu Daryah', 'Om El-Saaf', 'Tantal', 'Hamaret Al Qayla']
         && (badge.metric == 'hunt'
           || (badge.metric == 'monster' && (
             (badge.monsterId == 'bu_daryah' && session.legend == 'Bu Daryah') ||
-            (badge.monsterId == 'om_el_saaf' && session.legend == 'Om El-Saaf')
+            (badge.monsterId == 'om_el_saaf' && session.legend == 'Om El-Saaf') ||
+            (badge.monsterId == 'tantal' && session.legend == 'Tantal') ||
+            (badge.monsterId == 'hamaret_al_qayla' && session.legend == 'Hamaret Al Qayla')
           ))
           || (badge.metric == 'hunt_steps' && session.numSteps is int && session.numSteps >= badge.target)
           || (badge.metric == 'hunt_crystals' && session.crystalsEarned is int && session.crystalsEarned >= badge.target));

@@ -1,9 +1,16 @@
 using UnityEngine;
 
-// Soft pale foreground wisps, still transparent. Attach to OmElsaafTheme > frontBreeze.
+
+/// <summary>
+/// Sets the appearance of Om Elsaaf's foreground breeze.
+/// This layer uses thinner, lighter streaks to give the sandy wind more detail.
+/// </summary>
 [AddComponentMenu("MasAR+/Om Elsaaf/Breeze Front")]
 public class OmElsaafBreezeFront : OmElsaafBreezeLayerBase
 {
+    /// <summary>
+    /// Sets the default colors, movement, and transparency for this layer.
+    /// </summary>
     private void Reset()
     {
         sandColor = new Color32(205, 183, 149, 255);

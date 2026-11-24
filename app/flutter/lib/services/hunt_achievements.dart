@@ -89,6 +89,8 @@ class HuntAchievements {
     final monster = switch (session['legend']) {
       'Bu Daryah' => 'bu_daryah',
       'Om El-Saaf' => 'om_el_saaf',
+      'Tantal' => 'tantal',
+      'Hamaret Al Qayla' => 'hamaret_al_qayla',
       _ => null,
     };
     if (monster == null) return false;

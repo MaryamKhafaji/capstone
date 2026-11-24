@@ -9,6 +9,8 @@ public class HuntRewardActions : MonoBehaviour
     [Header("Monster Hunt Roots")]
     [SerializeField] private GameObject buDaryaHunt;
     [SerializeField] private GameObject omElSaafHunt;
+    [SerializeField] private GameObject tantalHunt;
+    [SerializeField] private GameObject hamaretHunt;
 
     [Serializable]
     private class HuntRecord
@@ -240,18 +242,50 @@ public class HuntRewardActions : MonoBehaviour
 
     public string SelectMonster(string monsterId)
     {
-        bool isOmElSaaf = monsterId == "om_el_saaf";
-        // Restart the selected controller even when two consecutive hunts
-        // choose the same monster.
-        if (buDaryaHunt != null)
-            buDaryaHunt.SetActive(false);
-        if (omElSaafHunt != null)
-            omElSaafHunt.SetActive(false);
-        if (buDaryaHunt != null)
-            buDaryaHunt.SetActive(!isOmElSaaf);
-        if (omElSaafHunt != null)
-            omElSaafHunt.SetActive(isOmElSaaf);
-        return isOmElSaaf ? "Om El-Saaf" : "Bu Daryah";
+        // Used by the current MonsterHuntUIController and by embedded Flutter hunts.
+        // Recognize all three IDs without accidentally treating Tantal as Bu Daryah.
+        string id = (monsterId ?? string.Empty).Trim().ToLowerInvariant();
+        GameObject selectedRoot;
+        string displayName;
+
+        switch (id)
+        {
+            case "bu_daryah":
+                selectedRoot = buDaryaHunt;
+                displayName = "Bu Daryah";
+                break;
+            case "om_el_saaf":
+                selectedRoot = omElSaafHunt;
+                displayName = "Om El-Saaf";
+                break;
+            case "tantal":
+                selectedRoot = tantalHunt;
+                displayName = "Tantal";
+                break;
+            case HamaretHuntController.MonsterId:
+                selectedRoot = hamaretHunt;
+                displayName = HamaretHuntController.LegendName;
+                break;
+            default:
+                Debug.LogError("HuntRewardActions: Unknown monster ID '" + monsterId + "'.", this);
+                return null;
+        }
+
+        if (selectedRoot == null)
+        {
+            Debug.LogError("HuntRewardActions: Assign the hunt root for '" + id + "' in the Inspector.", this);
+            return null;
+        }
+
+        // Deactivate every hunt controller before enabling the chosen one.
+        // This preserves the original start/reset behavior for each hunt.
+        if (buDaryaHunt != null) buDaryaHunt.SetActive(false);
+        if (omElSaafHunt != null) omElSaafHunt.SetActive(false);
+        if (tantalHunt != null) tantalHunt.SetActive(false);
+        if (hamaretHunt != null) hamaretHunt.SetActive(false);
+
+        selectedRoot.SetActive(true);
+        return displayName;
     }
 
     public void ReturnToApp()
@@ -291,8 +325,9 @@ public class HuntRewardActions : MonoBehaviour
             return;
         }
 
-        string monsterId = UnityEngine.Random.Range(0, 2) == 0 ? "bu_daryah" : "om_el_saaf";
-        huntUI.SetMonsterSpawnName(SelectMonster(monsterId));
-        huntUI.ShowMonsterNotification();
+        // Reuse the UI controller's existing non-repeating random selection.
+        // It also respects "Include Tantal In Random Hunts" on MonsterFlowManager.
+        // Calling this avoids a second random picker that might repeat a monster.
+        huntUI.SpawnNextRandomMonster();
     }
 }

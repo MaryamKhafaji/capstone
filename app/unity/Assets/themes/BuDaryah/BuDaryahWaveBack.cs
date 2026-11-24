@@ -1,11 +1,21 @@
 using UnityEngine;
 
-// Quiet, wide sea body extending up from the advancing shoreline-facing edge.
+
+/// <summary>
+/// Sets the appearance of Bu Daryah's distant water layer.
+/// This wide, faint wave gives depth to the moving sea effect.
+/// </summary>
 [AddComponentMenu("MasAR+/Bu Daryah/Wave Back")]
 public class BuDaryahWaveBack : BuDaryahWaveLayerBase
 {
+    /// <summary>
+    /// Applies the default wave settings when the component is added.
+    /// </summary>
     private void Reset() => ApplyShorelineDefaults();
 
+    /// <summary>
+    /// Sets the colors, shape, speed, and transparency for this wave layer.
+    /// </summary>
     [ContextMenu("Apply Shoreline Defaults")]
     private void ApplyShorelineDefaults()
     {

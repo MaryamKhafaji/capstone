@@ -138,6 +138,7 @@ public class BuDaryaHuntController : MonoBehaviour
 
     private float fakeMelodyMultiplier = 1f;
     private Coroutine initializationRoutine;
+    private bool travellingToPin;
 
     // One initialization per activation. Unity no longer implicitly calls Start()
     // as a second coroutine while OnEnable() starts another one.
@@ -145,6 +146,7 @@ public class BuDaryaHuntController : MonoBehaviour
     {
         huntReady = false;
         buDaryaCaught = false;
+        travellingToPin = false;
         initializationRoutine = StartCoroutine(InitializeHunt());
     }
 
@@ -229,6 +231,8 @@ public class BuDaryaHuntController : MonoBehaviour
         if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
         if (closeRange)
             realDestination = new Vector3(huntStartPosition.x + forward.x * 3f, groundY, huntStartPosition.z + forward.z * 3f);
+        else if (HuntLocationGuide.Active)
+            realDestination = new Vector3(huntStartPosition.x + forward.x * 6f, groundY, huntStartPosition.z + forward.z * 6f);
         else if (!TryRandomBuDaryaSpawn(
             center,
             groundY,
@@ -247,7 +251,7 @@ public class BuDaryaHuntController : MonoBehaviour
 
         Vector3 fakeDestination;
 
-        if (closeRange)
+        if (closeRange || HuntLocationGuide.Active)
         {
             Vector3 direction = Quaternion.Euler(0f, 35f, 0f) * forward;
             fakeDestination = new Vector3(huntStartPosition.x + direction.x * 2.5f, groundY, huntStartPosition.z + direction.z * 2.5f);
@@ -324,6 +328,7 @@ public class BuDaryaHuntController : MonoBehaviour
         buDaryaCaught = false;
 
         huntReady = true;
+        travellingToPin = HuntLocationGuide.Active && !HuntLocationGuide.AtDestination;
 
         previousPlayerPosition =
             playerCamera.position;
@@ -367,6 +372,38 @@ public class BuDaryaHuntController : MonoBehaviour
             buDaryaCaught)
         {
             return;
+        }
+
+        if (travellingToPin)
+        {
+            if (!HuntLocationGuide.HasFix)
+            {
+                fakeMelodySource.volume = 0f;
+                realMelodySource.volume = 0f;
+                return;
+            }
+            Vector3 direction = HuntLocationGuide.Direction;
+            if (!HuntLocationGuide.AtDestination)
+            {
+                // Audible nearby cue points toward the actual saved destination,
+                // rather than a random room position. Capture is unavailable en route.
+                fakeMelodyLocation.position = playerCamera.position + direction * 6f;
+                fakeMelodySource.volume = maximumVolume * 0.6f;
+                realMelodySource.volume = 0f;
+                if (buDaryaVisual != null)
+                    foreach (Renderer mesh in buDaryaVisual.GetComponentsInChildren<Renderer>(true)) mesh.enabled = false;
+                return;
+            }
+            travellingToPin = false;
+            float ground = navigationSystem != null ? navigationSystem.destinationGroundY : playerCamera.position.y;
+            Vector3 real = playerCamera.position + direction * 6f;
+            Vector3 fake = playerCamera.position + Quaternion.Euler(0, 35, 0) * direction * 4f;
+            real.y = fake.y = ground;
+            realMelodyLocation.position = real;
+            fakeMelodyLocation.position = fake;
+            if (buDaryaVisual != null)
+                foreach (Renderer mesh in buDaryaVisual.GetComponentsInChildren<Renderer>(true)) mesh.enabled = true;
+            previousPlayerPosition = playerCamera.position;
         }
 
         if (!realMelodyStarted)

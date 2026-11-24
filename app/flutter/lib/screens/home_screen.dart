@@ -529,7 +529,7 @@ void _handlePowerDetected() {
 
               style: const TextStyle(
 
-                color: Colors.white70,
+                color: Colors.black,
 
                 fontSize: 11,
 
@@ -795,6 +795,16 @@ void _handlePowerDetected() {
 
               ),
 
+            ),
+
+          if (_launching)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Colors.black,
+                child: Center(
+                  child: Text('Loading…', style: TextStyle(color: Colors.white, fontSize: 22)),
+                ),
+              ),
             ),
 
         ],

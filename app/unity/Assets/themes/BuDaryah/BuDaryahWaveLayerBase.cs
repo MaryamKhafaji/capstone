@@ -1,10 +1,12 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Shared UI rendering engine for the three Bu Daryah wave components.
-// Do not attach this abstract class directly.
-// The shore is at the bottom of the Canvas (Y=0).
-// The water is ABOVE its animated front edge and becomes transparent upward.
+
+/// <summary>
+/// Draws the moving water and foam used in Bu Daryah's HUD theme.
+/// Each wave is shaped from UI vertices and fades toward the screen edges.
+/// The wave layers use the tide controller to approach and retreat together.
+/// </summary>
 public abstract class BuDaryahWaveLayerBase : MaskableGraphic
 {
     [Header("Dishdasha-inspired sea colors")]
@@ -37,6 +39,12 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
     [Range(0.5f, 5f)][SerializeField] protected float waveCycles = 1.5f;
     [Range(24, 128)][SerializeField] protected int segments = 80;
 
+    [Header("Soft horizontal screen edges")]
+    [Tooltip("Keep the extreme left/right fully transparent; the extra inset also hides the wave RectTransform overhang outside ThemeCanvas.")]
+    [Range(0f, 0.12f)][SerializeField] protected float clearEdgeFraction = 0.05f;
+    [Tooltip("How gradually the waves appear after the transparent edge (fraction of layer width, each side). Increase for a softer blend.")]
+    [Range(0.02f, 0.35f)][SerializeField] protected float edgeFadeFraction = 0.14f;
+
     [Header("Optional shared controller (found on parent automatically)")]
     [SerializeField] private BuDaryahTideController tideController;
 
@@ -45,6 +53,9 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
     private const int CrestRows = 9;
     private float nextRedrawTime;
 
+    /// <summary>
+    /// Prepares the wave graphic and finds the shared tide controller.
+    /// </summary>
     protected override void Awake()
     {
         base.Awake();
@@ -52,6 +63,9 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
         FindController();
     }
 
+    /// <summary>
+    /// Reconnects the tide controller and redraws the wave when enabled.
+    /// </summary>
     protected override void OnEnable()
     {
         base.OnEnable();
@@ -60,7 +74,10 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
     }
 
 #if UNITY_EDITOR
-    // Graphic.OnValidate is editor-only in Unity UI; exclude this override from Android builds.
+
+    /// <summary>
+    /// Refreshes the wave preview when its Inspector values change.
+    /// </summary>
     protected override void OnValidate()
     {
         base.OnValidate();
@@ -69,18 +86,27 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
     }
 #endif
 
+    /// <summary>
+    /// Forces the wave graphic to update after its settings are changed.
+    /// </summary>
     protected void RefreshWave()
     {
         raycastTarget = false;
         SetVerticesDirty();
     }
 
+    /// <summary>
+    /// Looks for the tide controller on the parent theme object.
+    /// </summary>
     private void FindController()
     {
         if (tideController == null)
             tideController = GetComponentInParent<BuDaryahTideController>();
     }
 
+    /// <summary>
+    /// Refreshes the wave shape at about 30 frames per second.
+    /// </summary>
     private void Update()
     {
         if (!Application.isPlaying || !isActiveAndEnabled) return;
@@ -89,6 +115,9 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
         SetVerticesDirty();
     }
 
+    /// <summary>
+    /// Calculates the water position for this frame and draws the body and foam.
+    /// </summary>
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
@@ -97,10 +126,12 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
 
         int columns = Mathf.Clamp(segments, 24, 128);
         float time = Application.isPlaying ? Time.time : 0f;
+        // Calculate this layer's own wave movement if no tide controller is active.
         float angle = time * TwoPi / Mathf.Max(0.2f, secondsPerCycle) + phaseOffset;
         float tide = 0.5f - 0.5f * Mathf.Cos(angle);
         float reach = 1f;
 
+        // Use the shared tide timing when it is available.
         if (Application.isPlaying && tideController != null && tideController.isActiveAndEnabled)
         {
             float delay = Mathf.Clamp(0.14f - phaseOffset * 0.30f, 0.02f, 0.32f);
@@ -108,26 +139,31 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
             reach = tideController.ReachMultiplier;
         }
 
-        // Top of the shoreline is below. A larger tide moves the water front DOWN.
+
+        // Move the water front down toward the shore as the tide advances.
         float frontY = Mathf.Clamp(
             frontRestingHeight - approachDistance * tide * reach,
             3f, r.height - 5f);
 
         float depthScale = Mathf.Clamp(1f + (reach - 1f) * 0.12f * tide, 0.85f, 1.18f);
 
-        // Foam expands near the end of each incoming tide and contracts as it retreats.
-        // Only layers whose Foam Extra Width > 0 get the growing white surf effect.
+
+        // Increase foam near the peak of an incoming wave.
         float foamProgress = Mathf.SmoothStep(0f, 1f,
             Mathf.InverseLerp(foamStartsAtTide, 1f, Mathf.Clamp01(tide)));
         float foamExtraWidth = foamExtraWidthAtShore * foamProgress * Mathf.Clamp(reach, 0.65f, 1.4f);
         float foamBrightness = 1f + foamOpacityBoostAtShore * foamProgress;
 
+        // Draw the water body and its pale crest separately.
         DrawLayer(vh, r, columns, BodyRows, frontY, waterHeight * depthScale, angle, false, 0f, 1f);
         if (crestVisibility > 0.001f)
             DrawLayer(vh, r, columns, CrestRows, frontY, waterHeight, angle, true,
                 foamExtraWidth, foamBrightness);
     }
 
+    /// <summary>
+    /// Draws a curved water layer using color and alpha at each vertex.
+    /// </summary>
     private void DrawLayer(VertexHelper vh, Rect r, int columns, int rows,
         float frontY, float depth, float angle, bool crest, float extraFoamWidth, float foamBrightness)
     {
@@ -138,7 +174,8 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
         {
             float u = ix / (float)columns;
             float x = Mathf.Lerp(r.xMin, r.xMax, u);
-            // Two overlapping, low-amplitude curves create a non-uniform shore-facing edge.
+
+            // Blend two gentle curves for an uneven wave edge.
             float shape = Mathf.Sin(TwoPi * (u * waveCycles + 0.11f));
             shape += 0.31f * Mathf.Sin(TwoPi * (u * waveCycles * 2.1f + 0.32f));
             float yFront = Mathf.Clamp(r.yMin + frontY + curvedSurface * shape,
@@ -146,6 +183,13 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
 
             float center = Mathf.Pow(Mathf.Sin(Mathf.PI * u), 2f);
             float edgeStrength = Mathf.Lerp(1f, centerStrength, center);
+
+
+            // Fade the waves before their left and right boundaries.
+            float distanceFromSide = Mathf.Min(u, 1f - u);
+            float horizontalFade = Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((distanceFromSide - clearEdgeFraction) /
+                              Mathf.Max(0.001f, edgeFadeFraction)));
             float shimmer = 0.96f + 0.04f * Mathf.Sin(TwoPi * u * 1.65f + angle * 0.38f);
 
             for (int iy = 0; iy < rows; iy++)
@@ -155,9 +199,10 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
                 float alpha;
                 Color tone;
 
+                // Draw the water body with transparency fading upward.
                 if (!crest)
                 {
-                    // v=0: at the shore-facing front. v=1: up inside the AR view.
+
                     y = Mathf.Min(r.yMax, yFront + depth * v);
                     float fadeUpward = 1f - Mathf.SmoothStep(0f, 1f, v);
                     alpha = visibility * fadeUpward * edgeStrength * shimmer;
@@ -165,9 +210,9 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
                 }
                 else
                 {
-                    // The white surf spreads across the water as the front reaches shore.
-                    // Wider on the seaward side (above yFront), with a small amount
-                    // washing onto the shore below the front edge.
+
+
+                    // Spread the foam around the water front when the tide reaches shore.
                     float shoreward = crestWidth + extraFoamWidth * 0.28f;
                     float seaward = crestWidth + extraFoamWidth * 0.72f;
                     y = Mathf.Clamp(yFront + Mathf.Lerp(-shoreward, seaward, v), r.yMin, r.yMax);
@@ -178,11 +223,12 @@ public abstract class BuDaryahWaveLayerBase : MaskableGraphic
 
                 Color vertexColor = new Color(
                     tone.r * tint.r, tone.g * tint.g, tone.b * tint.b,
-                    Mathf.Clamp01(alpha * tone.a * tint.a));
+                    Mathf.Clamp01(alpha * horizontalFade * tone.a * tint.a));
                 vh.AddVert(new Vector3(x, y, 0f), (Color32)vertexColor, new Vector2(u, v));
             }
         }
 
+        // Connect adjacent vertices to create the water surface.
         for (int ix = 0; ix < columns; ix++)
         {
             for (int iy = 0; iy < rows - 1; iy++)

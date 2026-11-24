@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Handler
+import android.os.Looper
 import android.util.AtomicFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -38,6 +43,10 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
 
             when (call.method) {
+
+                "previewNearbyHunts" -> {
+                    previewNearbyHunts(call.argument<String>("spawnCatalog") ?: "{}", result)
+                }
 
                 "launchEmbeddedGame" -> {
                     val uid = call.argument<String>("userId")
@@ -182,6 +191,59 @@ class MainActivity : FlutterActivity() {
                 else -> {
                     result.notImplemented()
                 }
+            }
+        }
+    }
+
+    private fun previewNearbyHunts(catalog: String, result: MethodChannel.Result) {
+        val manager = getSystemService(LocationManager::class.java)
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            result.error("location_permission", "Enable precise location to see nearby hunts.", null)
+            return
+        }
+        if (!manager.isLocationEnabled) {
+            result.error("gps_off", "Turn on location on your phone and try again.", null)
+            return
+        }
+        val handler = Handler(Looper.getMainLooper())
+        var finished = false
+        lateinit var listener: LocationListener
+        fun finish(location: Location?) {
+            if (finished) return
+            finished = true
+            manager.removeUpdates(listener)
+            if (location == null) {
+                result.error("location_unavailable", "Could not get an accurate location. Try again outdoors.", null)
+                return
+            }
+            try {
+                result.success(HuntLocationService.previewNearby(this, catalog, location).toString())
+            } catch (e: Exception) {
+                result.error("catalog_error", "Could not load hunt locations. Please try again.", null)
+            }
+        }
+        listener = LocationListener { location ->
+            if (HuntLocationService.usable(location)) finish(location)
+        }
+        try {
+            val providers = manager.getProviders(true).filter { it != LocationManager.PASSIVE_PROVIDER }
+            val cached = providers.mapNotNull { manager.getLastKnownLocation(it) }
+                .filter { HuntLocationService.usable(it) }.maxByOrNull { it.elapsedRealtimeNanos }
+            if (cached != null) {
+                finish(cached)
+                return
+            }
+            if (providers.isEmpty()) {
+                finish(null)
+                return
+            }
+            providers.forEach { manager.requestLocationUpdates(it, 1000L, 1f, listener, Looper.getMainLooper()) }
+            handler.postDelayed({ finish(null) }, 20000)
+        } catch (e: SecurityException) {
+            if (!finished) {
+                finished = true
+                manager.removeUpdates(listener)
+                result.error("location_permission", "Enable precise location to see nearby hunts.", null)
             }
         }
     }

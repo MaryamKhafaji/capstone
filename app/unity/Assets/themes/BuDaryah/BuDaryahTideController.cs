@@ -1,8 +1,11 @@
 using UnityEngine;
 
-// Put this on BuDaryahTheme. It drives ALL three wave layers as one tide.
-// Every incoming wave has its own reach, duration, and short calm pause.
-// The shore stays completely stationary.
+
+/// <summary>
+/// Controls the timing and reach of Bu Daryah's incoming waves.
+/// Each tide moves in, retreats, and pauses briefly before the next one.
+/// The wave layers read this controller to move together naturally.
+/// </summary>
 [AddComponentMenu("MasAR+/Bu Daryah/Natural Tide Controller")]
 public class BuDaryahTideController : MonoBehaviour
 {
@@ -26,11 +29,17 @@ public class BuDaryahTideController : MonoBehaviour
     private float pauseDuration;
     private bool initialized;
 
+    /// <summary>
+    /// Begins a fresh tide cycle when the theme is enabled.
+    /// </summary>
     private void OnEnable()
     {
         StartNextCycle(Time.time);
     }
 
+    /// <summary>
+    /// Starts the next tide after the current wave and pause finish.
+    /// </summary>
     private void Update()
     {
         if (!initialized) StartNextCycle(Time.time);
@@ -38,9 +47,13 @@ public class BuDaryahTideController : MonoBehaviour
             StartNextCycle(Time.time);
     }
 
+    /// <summary>
+    /// Chooses the next wave's reach, duration, and pause.
+    /// </summary>
     private void StartNextCycle(float atTime)
     {
         startTime = atTime;
+        // Vary each wave slightly so the motion does not repeat exactly.
         ReachMultiplier = Random.Range(
             Mathf.Max(0.1f, minimumReach),
             Mathf.Max(minimumReach, maximumReach));
@@ -53,16 +66,21 @@ public class BuDaryahTideController : MonoBehaviour
         initialized = true;
     }
 
-    // A small optional layer delay lets the highlight, middle, and back layers
-    // follow the SAME wave without sitting perfectly on top of one another.
+
+    /// <summary>
+    /// Returns how far the tide has advanced, from 0 to 1.
+    /// Each layer can use a small delay so the waves do not overlap exactly.
+    /// </summary>
     public float GetAdvance01(float layerDelaySeconds = 0f)
     {
         if (!initialized) return 0f;
+        // Account for the small timing difference between the wave layers.
         float elapsed = Time.time - startTime - Mathf.Max(0f, layerDelaySeconds);
         if (elapsed <= 0f || elapsed >= cycleDuration) return 0f;
 
         float t = elapsed / cycleDuration;
         float reach;
+        // The wave approaches first, then retreats for the rest of the cycle.
         if (t < incomingPart)
             reach = Smooth01(t / Mathf.Max(0.01f, incomingPart));
         else
@@ -70,12 +88,18 @@ public class BuDaryahTideController : MonoBehaviour
         return Mathf.Clamp01(reach);
     }
 
+    /// <summary>
+    /// Smooths the movement so each wave accelerates and slows gently.
+    /// </summary>
     private static float Smooth01(float t)
     {
         t = Mathf.Clamp01(t);
         return t * t * (3f - 2f * t);
     }
 
+    /// <summary>
+    /// Keeps minimum and maximum Inspector values within valid ranges.
+    /// </summary>
     private void OnValidate()
     {
         minimumReach = Mathf.Max(0.1f, minimumReach);

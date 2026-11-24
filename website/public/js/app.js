@@ -1634,7 +1634,7 @@ async function seedSampleData() {
 }
 
 // ================= HUNTS =================
-const huntMonsters = { bu_daryah: "Bu Daryah", om_el_saaf: "Om El-Saaf" };
+const huntMonsters = { bu_daryah: "Bu Daryah", om_el_saaf: "Om El-Saaf", tantal: "Tantal", hamaret_al_qayla: "Hamaret Al Qayla" };
 const achievementMetrics = {
   hunt: "Complete any hunt",
   monster: "Capture a specific monster",
@@ -1667,7 +1667,7 @@ async function loadHunts() {
       const monster = await getDoc(doc(db, "monsters", id));
       const managed = monster.data()?.spawnCatalogEnabled === true;
       const sites = managed ? (await getDocs(spawnCollection(id))).docs.map((d) => ({ ...d.data(), id: d.id })) :
-        [{ ...defaultSpawn, id: "default" }];
+        (["tantal", "hamaret_al_qayla"].includes(id) ? [] : [{ ...defaultSpawn, id: "default" }]);
       return [id, { name, sites }];
     }));
     huntSites = Object.fromEntries(locations);
@@ -1688,7 +1688,7 @@ function safeMapsLink(value) {
 }
 
 function renderHunts() {
-  $("hunt-monsters").innerHTML = Object.entries(huntSites).map(([id, { name, sites }]) => `
+  $("hunt-monsters").innerHTML = `<p class="text-sm text-on-surface-variant mb-3">Choose the maximum estimated walking time for each location. Players must reach the location before the hunt starts. Times are estimates based on proximity, not mapped walking routes.</p>` + Object.entries(huntSites).map(([id, { name, sites }]) => `
     <div class="rounded-lg bg-surface-container-low p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h4 class="font-bold">${esc(name)}</h4>
@@ -1700,7 +1700,7 @@ function renderHunts() {
           <div class="min-w-0">
             ${link ? `<a class="${huntButton} break-words" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${esc(site.name)}</a>` :
               `<p class="text-sm font-bold">${esc(site.name)}</p>`}
-            <p class="text-xs text-on-surface-variant">${Number(site.latitude).toFixed(5)}, ${Number(site.longitude).toFixed(5)} · ${esc(site.arrivalRadiusMeters)} m radius</p>
+            <p class="text-xs text-on-surface-variant">${Number(site.latitude).toFixed(5)}, ${Number(site.longitude).toFixed(5)} · Up to ${esc(site.walkingMinutes ?? 60)} minutes walking</p>
           </div>
           <button class="${huntButton}" data-action="edit-spawn" data-id="${esc(site.id)}" data-monster="${id}">Manage</button>
         </div>`;
@@ -1731,7 +1731,7 @@ function spawnModal(monsterId, site) {
       const monster = await tx.get(monsterRef);
       if (monster.data()?.spawnCatalogEnabled !== true) {
         tx.set(monsterRef, { name: huntMonsters[monsterId], spawnCatalogEnabled: true }, { merge: true });
-        if (siteRef.id !== "default") tx.set(doc(spawnCollection(monsterId), "default"), defaultSpawn);
+        if (!["tantal", "hamaret_al_qayla"].includes(monsterId) && siteRef.id !== "default") tx.set(doc(spawnCollection(monsterId), "default"), defaultSpawn);
       }
       if (values) tx.set(siteRef, values);
       else tx.delete(siteRef);
@@ -1745,12 +1745,12 @@ function spawnModal(monsterId, site) {
       { name: "mapsUrl", label: "Google Maps link", type: "url", value: site?.mapsUrl, required: true },
       { name: "latitude", label: "Latitude (optional if the link contains a pin)", value: site?.latitude },
       { name: "longitude", label: "Longitude (optional if the link contains a pin)", value: site?.longitude },
-      { name: "arrivalRadiusMeters", label: "Arrival radius in metres (10–250)", type: "number", value: site?.arrivalRadiusMeters ?? 30, required: true },
+      { name: "walkingMinutes", label: "Maximum estimated walking time", type: "select", options: [15, 30, 45, 60].map((minutes) => [minutes, `${minutes} minutes`]), value: site?.walkingMinutes ?? 60, required: true },
     ],
-    onSave: async ({ name, mapsUrl: link, latitude, longitude, arrivalRadiusMeters }) => {
+    onSave: async ({ name, mapsUrl: link, latitude, longitude, walkingMinutes }) => {
       const parsed = mapsUrl(link);
-      if (name.length > 120 || !Number.isInteger(arrivalRadiusMeters) || arrivalRadiusMeters < 10 || arrivalRadiusMeters > 250) {
-        throw new Error("Use a name up to 120 characters and a whole-number radius between 10 and 250 metres.");
+      if (name.length > 120) {
+        throw new Error("Use a location name up to 120 characters.");
       }
       let pin;
       if (latitude || longitude) {
@@ -1769,7 +1769,16 @@ function spawnModal(monsterId, site) {
         }
         if (!pin) throw new Error("Couldn't find the pin. Enter its latitude and longitude from Google Maps.");
       }
-      await saveSite({ name, mapsUrl: parsed.url.href, ...pin, arrivalRadiusMeters });
+      const response = await fetch("/api/hunt-walking-range", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walkingMinutes: Number(walkingMinutes) }),
+      });
+      const range = await response.json();
+      if (!response.ok) throw new Error(range.error || "Could not calculate the walking range. Please try again.");
+      await saveSite({ name, mapsUrl: parsed.url.href, ...pin,
+        walkingMinutes: range.walkingMinutes, maxSearchMeters: range.maxSearchMeters,
+        arrivalRadiusMeters: site?.arrivalRadiusMeters ?? 30 });
       showToast("Spawn location saved");
     },
     onDelete: site ? async () => {

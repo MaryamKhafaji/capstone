@@ -24,6 +24,8 @@ public class OmElSaafHuntController : MonoBehaviour
     [Tooltip("Drag the om_elsaaf_Fregblend prefab here, not the FBX file if you want to edit scale/materials in the prefab.")]
     [SerializeField] private GameObject palmFrondPrefab;
     [Min(1)][SerializeField] private int leafCount = 5;
+    [Tooltip("In location mode, place one collectible per approximate walking distance.")]
+    [Min(1f)][SerializeField] private float metresPerLeaf = 50f;
     [Tooltip("Multiplies the prefab's existing scale. Begin with 1.")]
     [Min(0.01f)][SerializeField] private float frondScaleMultiplier = 1f;
     [SerializeField] private float leafHeightBelowCamera = 0.75f;
@@ -60,16 +62,28 @@ public class OmElSaafHuntController : MonoBehaviour
     private float frondPickupAllowedAt;
     private Coroutine huntRoutine;
     private int collectedCount;
+    private int requiredLeafCount;
     private bool huntReady;
     private bool huntFinished;
     private DateTime huntStartTime;
     private string huntId;
+    private bool frondIsGuidance;
+
+    internal static int CountForDistance(float distance, float spacing)
+    {
+        return Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(0f, distance) / Mathf.Max(1f, spacing)));
+    }
+
+    public int RequiredLeafCount => HuntLocationGuide.Active
+        ? CountForDistance(HuntLocationGuide.InitialDistance, metresPerLeaf)
+        : Mathf.Max(1, leafCount);
 
     private void OnEnable()
     {
         huntReady = false;
         huntFinished = false;
         collectedCount = 0;
+        requiredLeafCount = RequiredLeafCount;
         huntId = Guid.NewGuid().ToString("N");
         HideMonsterVisual();
         huntRoutine = StartCoroutine(InitializeHunt());
@@ -119,7 +133,7 @@ public class OmElSaafHuntController : MonoBehaviour
         huntReady = true;
         SpawnCurrentFrond();
         huntRoutine = null;
-        Debug.Log("OM EL-SAAF: Hunt started; frond 1/" + leafCount);
+        Debug.Log("OM EL-SAAF: Hunt started; frond 1/" + requiredLeafCount);
     }
 
     private void SpawnMonsterPosition()
@@ -179,7 +193,7 @@ public class OmElSaafHuntController : MonoBehaviour
 
     private void SpawnCurrentFrond()
     {
-        if (!huntReady || huntFinished || collectedCount >= leafCount || currentFrond != null)
+        if (!huntReady || huntFinished || collectedCount >= requiredLeafCount || currentFrond != null)
             return;
 
         // Spawn each new frond relative to the camera NOW, not relative to a
@@ -188,6 +202,8 @@ public class OmElSaafHuntController : MonoBehaviour
         forward.y = 0f;
         if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
         forward.Normalize();
+        if (HuntLocationGuide.Active && HuntLocationGuide.HasFix && !HuntLocationGuide.AtDestination)
+            forward = HuntLocationGuide.Direction;
         forward = Quaternion.Euler(0f,
             UnityEngine.Random.Range(-frondSpawnAngle, frondSpawnAngle), 0f) * forward;
 
@@ -207,6 +223,7 @@ public class OmElSaafHuntController : MonoBehaviour
         }
 
         currentFrond = Instantiate(palmFrondPrefab, intendedCenter, rotation);
+        frondIsGuidance = HuntLocationGuide.Active && !ReachedFrondMilestone();
         currentFrond.name = "OmElSaafPalmFrond_" + (collectedCount + 1);
         currentFrond.transform.localScale *= frondScaleMultiplier;
 
@@ -226,7 +243,7 @@ public class OmElSaafHuntController : MonoBehaviour
         }
 
         frondPickupAllowedAt = Time.time + pickupArmDelay;
-        Debug.Log("OM EL-SAAF: Frond " + (collectedCount + 1) + "/" + leafCount +
+        Debug.Log("OM EL-SAAF: Frond " + (collectedCount + 1) + "/" + requiredLeafCount +
                   " appeared, visual center=" + currentFrondVisualCenter +
                   ", camera=" + mainCamera.position +
                   ", pickup radius=" + collectionDistance);
@@ -255,6 +272,28 @@ public class OmElSaafHuntController : MonoBehaviour
             return;
         if (Time.time < frondPickupAllowedAt) return;
 
+        if (HuntLocationGuide.Active)
+        {
+            if (!HuntLocationGuide.HasFix) return;
+            if (frondIsGuidance)
+            {
+                if (!ReachedFrondMilestone())
+                {
+                    Vector3 guide = mainCamera.position + HuntLocationGuide.Direction * 4f;
+                    guide.y = mainCamera.position.y - leafHeightBelowCamera;
+                    if (TryGetFrondVisualCenter(out Vector3 visualCenter))
+                        currentFrond.transform.position += guide - visualCenter;
+                    if (faceFrondTowardPlayer)
+                        currentFrond.transform.rotation = Quaternion.LookRotation(-HuntLocationGuide.Direction) * Quaternion.Euler(frondRotationOffset);
+                    return;
+                }
+                // Freeze the collectible when the player reaches this part of the walk.
+                frondIsGuidance = false;
+                frondPickupAllowedAt = Time.time + pickupArmDelay;
+                return;
+            }
+        }
+
         Vector3 center;
         if (TryGetFrondVisualCenter(out center)) currentFrondVisualCenter = center;
 
@@ -265,7 +304,8 @@ public class OmElSaafHuntController : MonoBehaviour
         target.y = 0f;
         float horizontalDistance = Vector3.Distance(player, target);
         float pickupDistance = EmbeddedHunt.Active && EmbeddedHunt.ReadState().closeRangeDebug ? 1f : collectionDistance;
-        if (horizontalDistance <= pickupDistance)
+        if (horizontalDistance <= pickupDistance &&
+            (!HuntLocationGuide.Active || collectedCount + 1 < requiredLeafCount || HuntLocationGuide.AtDestination))
             CollectCurrentFrond();
     }
 
@@ -275,9 +315,9 @@ public class OmElSaafHuntController : MonoBehaviour
 
         DestroyCurrentFrond();
         collectedCount++;
-        Debug.Log("OM EL-SAAF: Frond collected " + collectedCount + "/" + leafCount);
+        Debug.Log("OM EL-SAAF: Frond collected " + collectedCount + "/" + requiredLeafCount);
 
-        if (collectedCount >= leafCount)
+        if (collectedCount >= requiredLeafCount)
         {
             huntReady = false;
             huntRoutine = StartCoroutine(RevealAndCapture());
@@ -286,6 +326,17 @@ public class OmElSaafHuntController : MonoBehaviour
         {
             huntRoutine = StartCoroutine(SpawnNextFrond());
         }
+    }
+
+    private bool ReachedFrondMilestone()
+    {
+        if (!HuntLocationGuide.Active) return true;
+        if (!HuntLocationGuide.HasFix) return false;
+        if (HuntLocationGuide.AtDestination) return true;
+        if (collectedCount + 1 >= requiredLeafCount) return false;
+        float remainingAtMilestone = HuntLocationGuide.InitialDistance *
+            (1f - (float)(collectedCount + 1) / requiredLeafCount);
+        return HuntLocationGuide.Current.distanceMeters <= remainingAtMilestone;
     }
 
     private IEnumerator SpawnNextFrond()
@@ -346,7 +397,7 @@ public class OmElSaafHuntController : MonoBehaviour
 
     private void CompleteOmElSaafHunt()
     {
-        if (huntFinished || collectedCount < leafCount) return;
+        if (huntFinished || collectedCount < requiredLeafCount) return;
         huntFinished = true;
 
         int completedSteps = 0;

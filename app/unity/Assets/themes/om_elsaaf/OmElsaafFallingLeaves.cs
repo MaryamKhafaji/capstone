@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+
 /// <summary>
-/// Quiet falling palm-leaf particles for Om Elsaaf's world-space UI.
-/// Same lightweight pooled-Image approach as BuDaryahBubbles.
-/// Attach to a full-screen/stretched empty RectTransform under OmElsaafTheme.
-/// Set each image's Texture Type to Sprite (2D and UI) before assigning.
+/// Creates the falling palm leaves used in Om Elsaaf's HUD theme.
+/// Leaves appear near the top, drift gently as they fall, and fade away.
+/// A small pool of UI images is reused to keep the effect lightweight.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 public class OmElsaafFallingLeaves : MonoBehaviour
@@ -15,28 +15,29 @@ public class OmElsaafFallingLeaves : MonoBehaviour
     [SerializeField] private Sprite[] leafSprites = new Sprite[3];
 
     [Header("Keep it subtle")]
-    [Range(1, 10)] [SerializeField] private int maximumVisible = 3;
-    [Min(0.2f)] [SerializeField] private float spawnIntervalMin = 2.0f;
-    [Min(0.2f)] [SerializeField] private float spawnIntervalMax = 3.5f;
-    [Range(0.01f, 1f)] [SerializeField] private float leafOpacity = 0.55f;
+    [Range(1, 10)][SerializeField] private int maximumVisible = 3;
+    [Min(0.2f)][SerializeField] private float spawnIntervalMin = 2.0f;
+    [Min(0.2f)][SerializeField] private float spawnIntervalMax = 3.5f;
+    [Range(0.01f, 1f)][SerializeField] private float leafOpacity = 0.55f;
     [SerializeField] private Color leafTint = Color.white;
 
     [Header("Leaf sizes in UI units (1280 x 720 HUD)")]
-    [Min(2f)] [SerializeField] private float sizeMin = 14f;
-    [Min(2f)] [SerializeField] private float sizeMax = 30f;
+    [Min(2f)][SerializeField] private float sizeMin = 14f;
+    [Min(2f)][SerializeField] private float sizeMax = 30f;
 
     [Header("Fall from top to bottom")]
-    [Min(0.2f)] [SerializeField] private float lifetimeMin = 8f;
-    [Min(0.2f)] [SerializeField] private float lifetimeMax = 12f;
-    [Min(0f)] [SerializeField] private float topPadding = 20f;
-    [Min(0f)] [SerializeField] private float bottomPadding = 20f;
-    [Min(0f)] [SerializeField] private float edgePadding = 32f;
+    [Min(0.2f)][SerializeField] private float lifetimeMin = 8f;
+    [Min(0.2f)][SerializeField] private float lifetimeMax = 12f;
+    [Min(0f)][SerializeField] private float topPadding = 20f;
+    [Min(0f)][SerializeField] private float bottomPadding = 20f;
+    [Min(0f)][SerializeField] private float edgePadding = 32f;
 
     [Header("Gentle natural movement")]
-    [Range(0f, 80f)] [SerializeField] private float sidewaysDrift = 24f;
-    [Range(0f, 30f)] [SerializeField] private float swayAmount = 8f;
-    [Range(0f, 90f)] [SerializeField] private float rotationAmount = 35f;
+    [Range(0f, 80f)][SerializeField] private float sidewaysDrift = 24f;
+    [Range(0f, 30f)][SerializeField] private float swayAmount = 8f;
+    [Range(0f, 90f)][SerializeField] private float rotationAmount = 35f;
 
+    // Stores the position, timing, and movement of one falling leaf.
     private class Leaf
     {
         public RectTransform rect;
@@ -54,22 +55,32 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         public float spin;
     }
 
+    // Reuse the same leaf images instead of creating new objects repeatedly.
     private readonly List<Leaf> pool = new List<Leaf>();
     private RectTransform area;
     private float untilNextSpawn;
     private bool warnedMissingSprites;
 
+    /// <summary>
+    /// Finds the UI area and prepares the reusable leaf images.
+    /// </summary>
     private void Awake()
     {
         area = GetComponent<RectTransform>();
         EnsurePool();
     }
 
+    /// <summary>
+    /// Schedules the first leaf shortly after the theme appears.
+    /// </summary>
     private void OnEnable()
     {
         untilNextSpawn = 0.4f;
     }
 
+    /// <summary>
+    /// Hides the existing leaves when the theme is turned off.
+    /// </summary>
     private void OnDisable()
     {
         foreach (Leaf leaf in pool)
@@ -79,10 +90,14 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Spawns leaves when needed and updates their position, rotation, and fading.
+    /// </summary>
     private void Update()
     {
         if (!Application.isPlaying || area == null) return;
         if (area.rect.width <= 1f || area.rect.height <= 1f) return;
+        // Do not try to spawn leaves until at least one sprite is assigned.
         if (!HasAnySprite())
         {
             if (!warnedMissingSprites)
@@ -117,18 +132,21 @@ public class OmElsaafFallingLeaves : MonoBehaviour
                 continue;
             }
 
-            // Downward movement with subtle side-to-side drift.
+
+            // Move downward with a small sideways sway.
             float x = leaf.startX + leaf.drift * t
                       + Mathf.Sin(t * Mathf.PI * 2f + leaf.phase) * leaf.sway;
             float y = Mathf.Lerp(leaf.startY, leaf.endY, t);
             leaf.rect.anchoredPosition = new Vector2(x, y);
 
-            // Leaves slowly turn as they fall, unlike Bu Daryah's bubbles.
+
+            // Slowly rotate each leaf as it falls.
             float angle = leaf.startAngle + leaf.spin * t
                           + Mathf.Sin(t * Mathf.PI * 2f + leaf.phase) * 7f;
             leaf.rect.localRotation = Quaternion.Euler(0f, 0f, angle);
 
-            // Gentle fade at the beginning and end; never suddenly pop.
+
+            // Fade leaves in and out instead of making them suddenly appear or disappear.
             float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 0.12f));
             float fadeOut = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((1f - t) / 0.22f));
             Color color = leafTint;
@@ -137,8 +155,12 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Creates enough reusable leaf images without making a new one every frame.
+    /// </summary>
     private void EnsurePool()
     {
+        // Only prepare as many leaf images as the maximum visible count needs.
         int wanted = Mathf.Max(1, maximumVisible);
         while (pool.Count < wanted)
         {
@@ -161,7 +183,7 @@ public class OmElsaafFallingLeaves : MonoBehaviour
             pool.Add(new Leaf { rect = rt, image = img });
         }
 
-        // If maximumVisible is reduced in the Inspector, hide extra items.
+
         for (int i = wanted; i < pool.Count; i++)
         {
             pool[i].active = false;
@@ -169,8 +191,12 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Starts one leaf at a random position above the HUD.
+    /// </summary>
     private void SpawnOne()
     {
+        // Find an unused leaf image from the pool.
         Leaf chosen = null;
         int count = Mathf.Min(maximumVisible, pool.Count);
         for (int i = 0; i < count; i++)
@@ -181,7 +207,7 @@ public class OmElsaafFallingLeaves : MonoBehaviour
                 break;
             }
         }
-        if (chosen == null) return; // Never show more than maximumVisible.
+        if (chosen == null) return;
 
         Sprite sprite = GetRandomSprite();
         if (sprite == null) return;
@@ -189,6 +215,7 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         float w = area.rect.width;
         float h = area.rect.height;
         float margin = Mathf.Min(edgePadding, w * 0.45f);
+        // Start above the screen at a random horizontal position.
         chosen.startX = Random.Range(margin, Mathf.Max(margin, w - margin));
         chosen.startY = h + topPadding;
         chosen.endY = -bottomPadding;
@@ -199,6 +226,7 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         chosen.age = 0f;
         chosen.life = Random.Range(Mathf.Max(0.2f, lifetimeMin),
                                    Mathf.Max(lifetimeMin, lifetimeMax));
+        // Give each leaf slightly different motion and rotation.
         chosen.drift = Random.Range(-sidewaysDrift, sidewaysDrift);
         chosen.sway = Random.Range(0.5f * swayAmount, swayAmount);
         chosen.phase = Random.Range(0f, Mathf.PI * 2f);
@@ -211,6 +239,9 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         chosen.active = true;
     }
 
+    /// <summary>
+    /// Checks that at least one leaf image has been assigned.
+    /// </summary>
     private bool HasAnySprite()
     {
         if (leafSprites == null) return false;
@@ -219,6 +250,9 @@ public class OmElsaafFallingLeaves : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Chooses randomly from the leaf images assigned in the Inspector.
+    /// </summary>
     private Sprite GetRandomSprite()
     {
         if (leafSprites == null || leafSprites.Length == 0) return null;

@@ -59,7 +59,8 @@ public final class EmbeddedHuntBridge {
         String launchId = config.getString("launchId");
         if (!launchId.equals(debugLaunchId) || debugMonster == null) {
             debugLaunchId = launchId;
-            debugMonster = ThreadLocalRandom.current().nextBoolean() ? "bu_daryah" : "om_el_saaf";
+            String[] monsters = {"bu_daryah", "om_el_saaf", "tantal", "hamaret_al_qayla"};
+            debugMonster = monsters[ThreadLocalRandom.current().nextInt(monsters.length)];
         }
         return new JSONObject()
             .put("status", "arrived")
@@ -113,6 +114,11 @@ public final class EmbeddedHuntBridge {
             endHunt(activity);
             activity.finish();
         });
+    }
+
+    public static void showLocationError(Activity activity, String message) {
+        activity.runOnUiThread(() -> android.widget.Toast.makeText(activity, message,
+            android.widget.Toast.LENGTH_LONG).show());
     }
 
     static void endHunt(Context context) {

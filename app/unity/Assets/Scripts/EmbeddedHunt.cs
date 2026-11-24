@@ -13,6 +13,11 @@ internal static class EmbeddedHunt
         public float bearingDegrees;
         public bool accuracyLimited;
         public bool closeRangeDebug;
+        public double playerLatitude;
+        public double playerLongitude;
+        public float accuracyMeters;
+        public bool hasHeading;
+        public float headingDegrees;
     }
 
     internal static bool Active
@@ -85,6 +90,16 @@ internal static class EmbeddedHunt
         using var bridge = new AndroidJavaClass("com.example.masar_plus.EmbeddedHuntBridge");
         using var activity = CurrentActivity();
         bridge.CallStatic("returnToApp", activity);
+#endif
+    }
+
+    internal static void ShowLocationError(string message)
+    {
+        Debug.LogWarning(message);
+#if UNITY_ANDROID && !UNITY_EDITOR
+        using var bridge = new AndroidJavaClass("com.example.masar_plus.EmbeddedHuntBridge");
+        using var activity = CurrentActivity();
+        bridge.CallStatic("showLocationError", activity, message);
 #endif
     }
 
