@@ -1,0 +1,13 @@
+Net,Connected pins/components,Source/status
+AC45,"J1.1, D1.A, D3.K",Upper row 45 from note (piezo)
+AC40,"J1.2, D2.A, D4.K",Upper row 40 from note (piezo)
+V_HARVEST,"D1.K, D2.K, C1.+, R1.1, R4.1, U1.GPIO0",Row 50 cathodes via row 26; row 24 linked to row 26
+HARVEST_GND,"D3.A, D4.A, C1.-, R1.2, Q1.Source, R2.2, R5.2, U1.GND, J2.2",Row 35 via row 20; lower row 26 to ground; common ground per notes
+LED_ANODE,"R4.2, D5.A",R4 row 26-28; LED long leg row28
+MOS_DRAIN,"D5.K, Q1.Drain",LED short leg row29 jumper row34
+MOS_GATE,"Q1.Gate, R2.1, R3.2",MOSFET middle row33; resistor 100k row32-33 and 1k row31-33
+GPIO5_GATE,"U1.GPIO5, R3.1",GPIO5 to row31
+SENSE_OUT,"U1.GPIO3, S1.row28, R5.1",GPIO3 row28 lower; R5 10k row26 (GND) to row28 lower
+STEP_PIEZO,"U1.GPIO4, J2.1",Secondary piezo row6 to GPIO4
+PHOTO_ROW29_UNKNOWN,"S1.row29",Unverified power function; notebook ambiguity
+PHOTO_ROW30_UNKNOWN,"S1.row30",Unverified power function; photo sensor device model unidentified
