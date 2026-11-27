@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 import 'main_shell.dart';
 import 'freej_screen.dart';
+import '../services/freej_weekly_service.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -18,11 +19,17 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   int _tab = 0;
+  late final Stream<FreejWeek> _weekly = FreejWeeklyService.watch();
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final mc = Theme.of(context).extension<MasarColors>()!;
-    return Scaffold(
+    return StreamBuilder<FreejWeek>(
+      stream: _weekly,
+      builder: (context, weekly) {
+      final week = weekly.data;
+      final own = week?.scores[FirebaseAuth.instance.currentUser?.uid];
+      return Scaffold(
       appBar: const MasarAppBar(),
       body: SafeArea(child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -37,7 +44,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               Text('YOUR WEEKLY STEPS', style: GoogleFonts.manrope(
                 fontSize: 11, fontWeight: FontWeight.w700, color: cs.secondary)),
               const SizedBox(height: 8),
-              Text('Not tracked yet', style: GoogleFonts.spaceGrotesk(
+              Text(week == null ? 'Loading…' : week.error ? 'Unavailable' : own?.toString() ?? 'Awaiting sync', style: GoogleFonts.spaceGrotesk(
                 fontSize: 26, fontWeight: FontWeight.w800, color: cs.primary)),
               const SizedBox(height: 4),
               Text('Sunday – Saturday · Kuwait time', style: GoogleFonts.manrope(
@@ -61,15 +68,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               GoogleFonts.manrope(fontSize: 12, color: cs.secondary)),
             const SizedBox(height: 14),
             const _RealStepsLeaderboard(),
-          ] else const _FreejLeaderboardPanel(),
+          ] else _FreejLeaderboardPanel(week: week),
         ]),
       )),
+    );
+      },
     );
   }
 }
 
 class _FreejLeaderboardPanel extends StatelessWidget {
-  const _FreejLeaderboardPanel();
+  final FreejWeek? week;
+  const _FreejLeaderboardPanel({required this.week});
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -104,6 +114,9 @@ class _FreejLeaderboardPanel extends StatelessWidget {
             final data = team.data!.data();
             if (data == null) return const Text('Freej not found.');
             final count = (data['memberCount'] as num?)?.toInt() ?? 0;
+            final w = week;
+            final score = w?.team(id);
+            final ready = w != null && !w.error && score != null && score.members.length == count;
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -119,28 +132,29 @@ class _FreejLeaderboardPanel extends StatelessWidget {
               ]),
               const SizedBox(height: 16),
               Row(children: [
-                Expanded(child: _FreejStat(title: 'TEAM RANK', value: '—',
-                  detail: count < 2 ? 'Need 2+ members' : 'Weekly ranking pending')),
+                Expanded(child: _FreejStat(title: 'TEAM RANK', value: ready && score.eligible ? '#${w.rank(score)}' : '—',
+                  detail: count < 2 ? 'Need 2+ members' : ready && score.eligible ? 'Weekly league' : 'Awaiting scores')),
                 const SizedBox(width: 10),
-                const Expanded(child: _FreejStat(title: 'TEAM AVERAGE',
-                  value: '—', detail: 'Weekly steps / member')),
+                Expanded(child: _FreejStat(title: 'TEAM AVERAGE',
+                  value: ready && score.synced == count ? score.average.toStringAsFixed(1) : '—', detail: 'Weekly steps / member')),
               ]),
               const SizedBox(height: 22),
               Text('Your Team Rankings', style: GoogleFonts.manrope(
                 fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 5),
-              Text('All-time steps preview · weekly scores not connected',
+              Text('Weekly footwear steps',
                 style: TextStyle(color: cs.secondary, fontSize: 12)),
               const SizedBox(height: 12),
-              _FreejMemberRankings(freejId: id),
+              _FreejMemberRankings(freejId: id, week: week),
               const SizedBox(height: 22),
               Text('Freej League', style: GoogleFonts.manrope(
                 fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(
                 color: mc.surfaceContainer, borderRadius: BorderRadius.circular(16)),
-                child: Text('Team league rankings will appear once verified weekly steps are connected. Teams need at least 2 members to qualify.',
-                  style: TextStyle(color: cs.secondary))),
+                child: w == null ? const LinearProgressIndicator() : w.error ? const Text('Unable to load weekly scores.') : w.ranked.isEmpty ? const Text('No teams with complete weekly scores yet.') : Column(children: w.ranked.map((t) => ListTile(
+                  leading: Text('#${w.rank(t)}'), title: Text(t.name),
+                  subtitle: Text('${t.members.length} members'), trailing: Text(t.average.toStringAsFixed(1)))).toList())),
             ]);
           },
         );
@@ -171,42 +185,27 @@ class _FreejStat extends StatelessWidget {
 
 class _FreejMemberRankings extends StatelessWidget {
   final String freejId;
-  const _FreejMemberRankings({required this.freejId});
+  final FreejWeek? week;
+  const _FreejMemberRankings({required this.freejId, required this.week});
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('freej').doc(freejId)
-        .collection('members').snapshots(),
-      builder: (context, members) {
-        if (members.hasError) return Text('Unable to load members: ${members.error}');
-        if (!members.hasData) return const Center(child: CircularProgressIndicator());
-        final ids = members.data!.docs.map((d) => d.id).toSet();
-        if (ids.isEmpty) return const Text('No members yet.');
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('leaderboard').snapshots(),
-          builder: (context, board) {
-            if (board.hasError) return Text('Unable to load scores: ${board.error}');
-            if (!board.hasData) return const Center(child: CircularProgressIndicator());
-            final entries = board.data!.docs.where((d) => ids.contains(d.id)).toList()
-              ..sort((a,b) => _toInt(b.data()['totalSteps']).compareTo(_toInt(a.data()['totalSteps'])));
-            final users = <_LeaderboardUser>[];
-            for (var i=0; i<entries.length; i++) {
-              final d=entries[i];
-              users.add(_LeaderboardUser(userId:d.id,
-                name:(d.data()['name'] ?? 'Walker').toString(),
-                totalSteps:_toInt(d.data()['totalSteps']),
-                streak:_toInt(d.data()['streak']), rank:i+1));
-            }
-            if (users.isEmpty) return const Text('No member step records yet.');
-            return Column(children: [
-              _StepsPodiumWidget(podium: users.take(3).toList()),
-              const SizedBox(height: 18),
-              ...users.map((u) => _StepsLeaderboardRow(user:u)),
-            ]);
-          },
-        );
-      },
-    );
+    final w = week;
+    if (w == null) return const LinearProgressIndicator();
+    if (w.error) return const Text('Unable to load weekly scores.');
+    final team = w.team(freejId);
+    if (team == null) return const Text('Team scores are refreshing.');
+    final ids = team.members.where(w.scores.containsKey).toList()
+      ..sort((a,b) => w.scores[b]!.compareTo(w.scores[a]!));
+    final users = ids.map((id) => _LeaderboardUser(userId: id,
+      name: w.names[id] ?? 'Walker', totalSteps: w.scores[id]!, streak: 0,
+      rank: 1 + ids.where((other) => w.scores[other]! > w.scores[id]!).length)).toList();
+    return Column(children: [
+      if (users.isNotEmpty) _StepsPodiumWidget(podium: users.take(3).toList()),
+      if (users.isNotEmpty) const SizedBox(height: 18),
+      ...users.map((u) => _StepsLeaderboardRow(user: u)),
+      ...team.members.where((id) => !w.scores.containsKey(id)).map((id) =>
+        ListTile(title: Text(w.names[id] ?? 'Walker'), trailing: const Text('Awaiting sync'))),
+    ]);
   }
 }
 

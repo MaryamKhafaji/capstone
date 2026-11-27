@@ -7,6 +7,7 @@ import '../widgets/shared_widgets.dart';
 import 'main_shell.dart';
 import 'hunt_badges_screen.dart';
 import 'settings_screen.dart';
+import 'walking_insights_screen.dart';
 import 'package:provider/provider.dart';
 import '../services/footwear_ble_service.dart';
 
@@ -201,6 +202,17 @@ class ProfileScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
+                MasarListItem(
+                  icon: Icons.bar_chart_rounded,
+                  title: 'Insights',
+                  subtitle: 'Explore your walking activity',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WalkingInsightsScreen(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // ── Achievements ──
                 const SectionHeader(title: 'Achievements'),

@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 
 import '../services/footwear_ble_service.dart';
 import '../services/step_counter_service.dart';
+import '../services/walking_insights_service.dart';
 import '../services/unity_hunt_bridge.dart';
 import '../services/hunt_achievements.dart';
 
@@ -72,9 +73,11 @@ class _MainShellState extends State<MainShell>
     // Normal Flutter footwear steps.
     _footwearBle.onStep = () {
       _stepCounter.incrementStep();
+      WalkingInsightsService.instance.recordStep();
     };
 
     _stepCounter.initialize();
+    WalkingInsightsService.instance.start();
 
     // If Flutter was previously closed/backgrounded
     // and there is a completed hunt waiting,
@@ -98,6 +101,7 @@ class _MainShellState extends State<MainShell>
   }
 
   Future<void> _handleAppResumed() async {
+    WalkingInsightsService.instance.start();
     // Process any result that Android stored
     // while Unity was running.
     await _reconnectFootwear();
@@ -160,6 +164,7 @@ class _MainShellState extends State<MainShell>
 
     _footwearBle.dispose();
     _stepCounter.dispose();
+    WalkingInsightsService.instance.stop();
 
     super.dispose();
   }

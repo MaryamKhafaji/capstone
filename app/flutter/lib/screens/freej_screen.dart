@@ -132,7 +132,11 @@ class _FreejScreenState extends State<FreejScreen> {
             return Column(children: members.data!.docs.map((doc) {
               final isCaptain = doc.id == data['captainUid'];
               return ListTile(
-                title: Text(doc.id == FirebaseAuth.instance.currentUser?.uid ? 'You' : 'Member ${doc.id.substring(0, doc.id.length < 6 ? doc.id.length : 6)}'),
+                title: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance.collection('leaderboard').doc(doc.id).snapshots(),
+                  builder: (context, profile) => Text(doc.id == FirebaseAuth.instance.currentUser?.uid
+                    ? 'You' : (profile.data?.data()?['name'] ?? 'Walker').toString()),
+                ),
                 subtitle: isCaptain ? const Text('Captain') : null,
                 trailing: captain && !isCaptain
                     ? TextButton(
